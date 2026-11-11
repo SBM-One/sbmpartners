@@ -1,18 +1,90 @@
 [
-  {"name": "Busy independent store owner", "buyer_type": "retailer", "channel": "email",
-   "profile": "Owns one home-decor and furniture shop in a mid-size town, 12 years in business. Does all buying herself, often late at night. Gets 30+ vendor emails a week and deletes most unread. Worries about minimum orders, cash tied up in slow stock, and lines her customers will not recognize. Trusts reps who know her store and show sell-through proof. Prefers short emails; hates being pushed to calls."},
-  {"name": "Multi-store retail buyer", "buyer_type": "retailer", "channel": "email",
-   "profile": "Head buyer for a regional chain of 9 home stores. Plans assortments by season, 6-9 months ahead, with a fixed open-to-buy budget. Needs margin (2.2x+ markup), reliable lead times, EDI or easy ordering, and marketing support. Polite but brief; forwards good pitches to a category assistant. Ignores anything vague or off-season."},
-  {"name": "Residential interior designer", "buyer_type": "design_firm", "channel": "email",
-   "profile": "Principal of a 4-person residential design studio doing high-end homes. Specifies pieces per project, so needs trade pricing, finish samples, COM options, dimensions and lead times on demand. Values beauty, quality and a responsive rep over price. Annoyed by mass emails; responds to vendors who understand her style and send something genuinely useful."},
-  {"name": "Commercial design firm specifier", "buyer_type": "contract", "channel": "linkedin",
-   "profile": "Senior designer at a 60-person commercial and hospitality design firm. Specs furniture for offices and hotels; needs contract-grade certifications (BIFMA, fire codes), spec sheets, CAD/Revit files, and a rep who can support large quantities. Gets many LinkedIn pitches; replies only when the product clearly fits an active project type."},
-  {"name": "Hotel group purchasing manager", "buyer_type": "hospitality", "channel": "email",
-   "profile": "FF&E purchasing manager for a group of 14 boutique hotels. Buys during renovations on a 5-7 year cycle, mostly through approved vendors and purchasing agents. Cares about durability, fire ratings, volume pricing, delivery and installation logistics, and warranty. Skeptical of new vendors; wants references from other hotel projects."},
-  {"name": "Furniture dealer owner", "buyer_type": "dealer", "channel": "call",
-   "profile": "Owns a family furniture dealership with a 20,000 sq ft showroom. Margins are tight and floor space is precious. Will add a line only if it sells better than what it replaces, ships on time, and the rep visits. Old-school: answers the phone, dislikes long emails, haggles on terms and freight."},
-  {"name": "Regional distributor category manager", "buyer_type": "distributor", "channel": "email",
-   "profile": "Category manager at a distributor serving 400 independent retailers. Evaluates new brands on wholesale margin, MOQ, catalog and photo assets, and whether the brand can support marketing. Data-driven: wants numbers, not adjectives. Will consider a trial program if risk is low."},
-  {"name": "Skeptical buyer who was burned before", "buyer_type": "retailer", "channel": "email",
-   "profile": "Owner of a lifestyle boutique who took on two new furniture brands last year; one shipped late and damaged, the other never reordered well. Now very guarded. Asks pointed questions about reliability, returns and damages. Responds to honesty and concrete guarantees; hangs up on hype."}
+ {
+  "name": "Busy independent store owner",
+  "buyer_type": "retailer",
+  "channel": "email",
+  "profile": "Owns one home-decor and furniture shop in a mid-size town, 12 years in business. Does all buying herself, often late at night. Gets 30+ vendor emails a week and deletes most unread. Worries about minimum orders, cash tied up in slow stock, and lines her customers will not recognize. Trusts reps who know her store and show sell-through proof. Prefers short emails; hates being pushed to calls.",
+  "contact": "Ellen Marsh",
+  "role": "owner",
+  "company": "Marsh & Pine Home",
+  "location": "Asheville, NC",
+  "detail": "Posted on Instagram last week that customers keep asking for solid-wood side tables under $500; recently dropped a particleboard brand."
+ },
+ {
+  "name": "Multi-store retail buyer",
+  "buyer_type": "retailer",
+  "channel": "email",
+  "profile": "Head buyer for a regional chain of 9 home stores. Plans assortments by season, 6-9 months ahead, with a fixed open-to-buy budget. Needs margin (2.2x+ markup), reliable lead times, EDI or easy ordering, and marketing support. Polite but brief; forwards good pitches to a category assistant. Ignores anything vague or off-season.",
+  "contact": "Daniel Osei",
+  "role": "head buyer",
+  "company": "Hearth & Field (9 stores)",
+  "location": "Ohio and Indiana",
+  "detail": "Chain is planning its spring/summer assortment now; its site shows a 'natural materials' collection launching in March."
+ },
+ {
+  "name": "Residential interior designer",
+  "buyer_type": "design_firm",
+  "channel": "email",
+  "profile": "Principal of a 4-person residential design studio doing high-end homes. Specifies pieces per project, so needs trade pricing, finish samples, COM options, dimensions and lead times on demand. Values beauty, quality and a responsive rep over price. Annoyed by mass emails; responds to vendors who understand her style and send something genuinely useful.",
+  "contact": "Sofia Lindqvist",
+  "role": "principal designer",
+  "company": "Lindqvist Interiors",
+  "location": "Copenhagen",
+  "detail": "Her studio's recent projects feature warm oak and walnut with Scandinavian lines; mentioned in an interview she struggles with long lead times."
+ },
+ {
+  "name": "Commercial design firm specifier",
+  "buyer_type": "contract",
+  "channel": "linkedin",
+  "profile": "Senior designer at a 60-person commercial and hospitality design firm. Specs furniture for offices and hotels; needs contract-grade certifications (BIFMA, fire codes), spec sheets, CAD/Revit files, and a rep who can support large quantities. Gets many LinkedIn pitches; replies only when the product clearly fits an active project type.",
+  "contact": "Marcus Lee",
+  "role": "senior designer",
+  "company": "Arkline Design Group",
+  "location": "Chicago, IL",
+  "detail": "Firm just announced a boutique hotel lobby and a 3-floor office fit-out; he posted about needing durable lounge seating."
+ },
+ {
+  "name": "Hotel group purchasing manager",
+  "buyer_type": "hospitality",
+  "channel": "email",
+  "profile": "FF&E purchasing manager for a group of 14 boutique hotels. Buys during renovations on a 5-7 year cycle, mostly through approved vendors and purchasing agents. Cares about durability, fire ratings, volume pricing, delivery and installation logistics, and warranty. Skeptical of new vendors; wants references from other hotel projects.",
+  "contact": "Priya Nair",
+  "role": "FF&E purchasing manager",
+  "company": "Coastline Boutique Hotels (14 properties)",
+  "location": "Lisbon and Algarve",
+  "detail": "Group announced renovations of 3 properties starting next year."
+ },
+ {
+  "name": "Furniture dealer owner",
+  "buyer_type": "dealer",
+  "channel": "call",
+  "profile": "Owns a family furniture dealership with a 20,000 sq ft showroom. Margins are tight and floor space is precious. Will add a line only if it sells better than what it replaces, ships on time, and the rep visits. Old-school: answers the phone, dislikes long emails, haggles on terms and freight.",
+  "contact": "Frank DeLuca",
+  "role": "owner",
+  "company": "DeLuca Furniture",
+  "location": "Scranton, PA",
+  "detail": "Third-generation family showroom; recently added a 'modern' room to attract younger buyers."
+ },
+ {
+  "name": "Regional distributor category manager",
+  "buyer_type": "distributor",
+  "channel": "email",
+  "profile": "Category manager at a distributor serving 400 independent retailers. Evaluates new brands on wholesale margin, MOQ, catalog and photo assets, and whether the brand can support marketing. Data-driven: wants numbers, not adjectives. Will consider a trial program if risk is low.",
+  "contact": "Hannah Weber",
+  "role": "category manager, home",
+  "company": "Nordhaus Distribution",
+  "location": "Hamburg",
+  "detail": "Distributor's trade newsletter says they are adding 5 new European brands this year with a focus on sustainable materials."
+ },
+ {
+  "name": "Skeptical buyer who was burned before",
+  "buyer_type": "retailer",
+  "channel": "email",
+  "profile": "Owner of a lifestyle boutique who took on two new furniture brands last year; one shipped late and damaged, the other never reordered well. Now very guarded. Asks pointed questions about reliability, returns and damages. Responds to honesty and concrete guarantees; hangs up on hype.",
+  "contact": "Jordan Price",
+  "role": "owner",
+  "company": "Price & Daughter",
+  "location": "Portland, OR",
+  "detail": "Left a public review last year about a furniture vendor that shipped late and damaged and refused returns."
+ }
 ]
