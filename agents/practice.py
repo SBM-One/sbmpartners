@@ -123,7 +123,10 @@ Rules:
 - Use ONLY facts in the client brief. Never invent customers, numbers, awards, scarcity or deadlines.
 - Apply the approved playbook below. Pick the entries that fit this buyer, channel and stage, and list
   their numbers in playbook_used.
-- Write for this specific buyer type: what they worry about, how they buy, what they need to say yes.
+- Write for this specific buyer: use their name and what your research found, and pitch what THIS
+  buyer type cares about (a designer is not a store; a hotel is not a dealer).
+- Every follow-up must add something new (a fact, a sample, an answer, a firm date), never "just
+  checking in". If the brief lacks a fact the buyer needs, say plainly you will confirm it, and when.
 - Keep it short and human. One clear, low-effort next step.
 - Emails identify the sender and end with the brief's opt-out line. A call opener is what you would
   say in the first 30 seconds.
@@ -139,13 +142,15 @@ Rules:
 BUYER_SYSTEM = """You are role-playing a real wholesale buyer receiving sales outreach. Stay in character.
 
 <who_you_are>
-{name} ({buyer_type}).
+You are {contact}, {role} at {company} ({location}). Type: {name} ({buyer_type}).
 {profile}
+Recent detail a well-prepared seller could know: {detail}
 </who_you_are>
 
-Be realistic, not kind. Real buyers ignore most cold outreach: reply only if THIS message would
-genuinely earn a reply from someone like you today. Generic, long, pushy or irrelevant messages get
-ignored or a short no. If you reply, write like a busy professional (often brief), and raise the
+Be realistic, not kind. Real buyers ignore the large majority of cold outreach: typical reply rates
+to cold B2B messages are well under 10%. Reply only if THIS message would genuinely earn a reply from
+someone like you today, between everything else you have to do. Generic, long, pushy, irrelevant or
+"just checking in" messages get ignored or a short no. If you reply, write like a busy professional (often brief), and raise the
 questions and objections you would really have. Agree to a meeting or samples only if earned.
 Your private_thoughts are your honest reaction, which the seller never sees."""
 
@@ -185,17 +190,27 @@ class Practice:
                                    titles="\n".join(f"[{i}] {e['title']}" for i, e in enumerate(playbook, 1)))}]
 
     def _parse(self, model, system, content, fmt, effort):
-        resp = self.c.beta.messages.parse(
-            model=model, max_tokens=16000, system=system,
-            messages=[{"role": "user", "content": content}],
-            output_format=fmt, output_config={"effort": effort},
-            betas=[FALLBACK_BETA], fallbacks="default",
-        )
-        with self.lock:
-            self.usage.add(resp)
-        if resp.parsed_output is None:
-            raise RuntimeError(f"{fmt.__name__}: no usable answer (stop reason {resp.stop_reason})")
-        return resp.parsed_output
+        """One structured call. A reply that comes back cut off or malformed is retried once."""
+        last_err = None
+        for attempt in range(2):
+            try:
+                resp = self.c.beta.messages.parse(
+                    model=model, max_tokens=16000, system=system,
+                    messages=[{"role": "user", "content": content}],
+                    output_format=fmt, output_config={"effort": effort},
+                    betas=[FALLBACK_BETA], fallbacks="default",
+                )
+            except ValueError as exc:  # the SDK's validation error for truncated or invalid JSON
+                last_err = exc
+                print(f"    {fmt.__name__}: unusable answer, retrying ({str(exc).splitlines()[0][:120]})", file=sys.stderr)
+                continue
+            with self.lock:
+                self.usage.add(resp)
+            if resp.parsed_output is not None:
+                return resp.parsed_output
+            last_err = RuntimeError(f"stop reason {resp.stop_reason}")
+            print(f"    {fmt.__name__}: no usable answer (stop reason {resp.stop_reason}), retrying", file=sys.stderr)
+        raise RuntimeError(f"{fmt.__name__}: no usable answer after a retry ({last_err})")
 
     @staticmethod
     def _transcript_text(transcript: list[dict]) -> str:
@@ -223,7 +238,9 @@ class Practice:
                 task = f"Reply to the buyer's last message ({channel})."
             history = self._transcript_text([{**t, "private": "(hidden)"} for t in transcript]) or "(none yet)"
             w = self._parse(WRITER_MODEL, self.writer_system,
-                            f"Buyer: {persona['name']} ({persona['buyer_type']}).\n\nConversation so far:\n"
+                            f"Buyer: {persona['contact']}, {persona['role']} at {persona['company']} "
+                            f"({persona['location']}). Type: {persona['name']} ({persona['buyer_type']}).\n"
+                            f"What your research found: {persona['detail']}\n\nConversation so far:\n"
                             f"{history}\n\n{task}", WriterTurn, "medium")
             transcript.append({"role": "writer", "subject": w.subject, "text": w.message,
                                "playbook_used": w.playbook_used})
@@ -240,8 +257,9 @@ class Practice:
                 break
 
         g = self._parse(GRADER_MODEL, self.grader_system,
-                        f"Buyer: {persona['name']} ({persona['buyer_type']}), channel: {channel}.\n"
-                        f"Buyer profile: {persona['profile']}\n\n{self._transcript_text(transcript)}",
+                        f"Buyer: {persona['contact']}, {persona['role']} at {persona['company']}. "
+                        f"Type: {persona['name']} ({persona['buyer_type']}), channel: {channel}.\n"
+                        f"Buyer profile: {persona['profile']}\nResearch the writer had: {persona['detail']}\n\n{self._transcript_text(transcript)}",
                         Grade, "medium")
         return {"id": str(uuid.uuid4()), "persona": persona["name"], "buyer_type": persona["buyer_type"],
                 "channel": channel, "transcript": transcript, "outcome": outcome,
@@ -394,10 +412,22 @@ def main(argv=None) -> None:
     results: list[dict] = []
     failed = 0
 
+    state = {"running": 0, "done": 0}
+    state_lock = threading.Lock()
+
     def one(persona):
-        if usage.cost_usd >= args.budget:
-            return None
-        return p.run(persona)
+        # Don't start an exchange unless the budget also covers the ones already running.
+        with state_lock:
+            avg = usage.cost_usd / state["done"] if state["done"] else 0.5
+            if usage.cost_usd + avg * (state["running"] + 1) > args.budget:
+                return None
+            state["running"] += 1
+        try:
+            return p.run(persona)
+        finally:
+            with state_lock:
+                state["running"] -= 1
+                state["done"] += 1
 
     # The first exchange runs alone so the cached prompts are written once, then the rest run in parallel.
     with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
@@ -427,7 +457,7 @@ def main(argv=None) -> None:
             results.append(r)
             print(f"[{len(results)}/{args.n}] {r['persona']}: {r['score']:.0f}/100, ${usage.cost_usd}", flush=True)
 
-    if usage.cost_usd >= args.budget and len(results) < args.n:
+    if len(results) + failed < args.n:
         print(f"Stopped at the ${args.budget} budget after {len(results)} exchanges.")
     weak = None
     try:

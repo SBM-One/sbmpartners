@@ -21,10 +21,13 @@ def usage():
 
 
 def fake_client():
-    calls = {"buyer": 0}
+    calls = {"buyer": 0, "broke_once": False}
 
     def parse(**kw):
         fmt = kw["output_format"]
+        if fmt is BuyerTurn and not calls["broke_once"]:
+            calls["broke_once"] = True  # a cut-off answer must be retried, not lose the exchange
+            raise ValueError("1 validation error for BuyerTurn: Invalid JSON: EOF while parsing a string")
         if fmt is WriterTurn:
             out = WriterTurn(subject="Oak side tables for O'Neill's shop", message="Hi, short note. Not relevant? Reply no.", playbook_used=[1])
         elif fmt is BuyerTurn:
@@ -72,6 +75,12 @@ def main():
         env["DATABASE_URL"] = db
     else:
         args += ["--playbook", str(pb)]
+    def count():
+        if not db:
+            return 0
+        return int(subprocess.run(["psql", db, "-X", "-At", "-c", "select count(*) from simulations"],
+                                  check=True, capture_output=True, text=True).stdout.strip())
+    before = count()
     with mock.patch.dict(os.environ, env), mock.patch.object(practice, "client", fake_client):
         practice.main(args)
 
@@ -84,11 +93,15 @@ def main():
     report = (out / "report.md").read_text()
     assert "Average score: 80 / 100" in report and "Weakest exchanges" in report
     if db:
-        res = subprocess.run(["psql", db, "-X", "-At", "-c",
-                              "select (select count(*) from simulations) || ' ' || (select count(*) from grades where subject='simulation')"],
-                             check=True, capture_output=True, text=True).stdout.strip()
-        assert res.startswith("6 ") and res.endswith(" 6"), res
-        print("Saved to Postgres OK:", res)
+        assert count() - before == 6
+        print("Saved 6 exchanges to Postgres OK")
+
+    # Budget: with a tiny budget, no exchange may start once the next one would not fit.
+    out2 = pathlib.Path(tempfile.mkdtemp())
+    with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "x"}), mock.patch.object(practice, "client", fake_client):
+        practice.main(["--n", "20", "--workers", "4", "--budget", "0.5", "--playbook", str(pb), "--out", str(out2)])
+    spent = json.loads((out2 / "results.json").read_text())
+    assert 0 < len(spent) < 20, len(spent)
     print("All practice checks passed.")
 
 
