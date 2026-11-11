@@ -1,0 +1,57 @@
+[
+  {
+    "id": "cold-email-first-touch",
+    "question": "What makes a first cold B2B sales email get a reply? Length, personalization, subject lines, structure, and the size of the ask.",
+    "channel": "email", "stage": "conversation"
+  },
+  {
+    "id": "follow-up-cadence",
+    "question": "How many follow-ups should a B2B seller send, how far apart, and what should each follow-up say differently?",
+    "channel": "email", "stage": "conversation"
+  },
+  {
+    "id": "persuasion-principles-b2b",
+    "question": "Which persuasion principles (reciprocity, social proof, authority, commitment, liking, scarcity, unity) hold up in replicated research, and how do they apply ethically to B2B outreach?",
+    "channel": null, "stage": null
+  },
+  {
+    "id": "retailer-new-line-psychology",
+    "question": "How do independent retail store owners and buyers decide to take on a new product line or brand? What risks worry them (minimums, sell-through, margin, space) and what lowers that risk?",
+    "channel": null, "stage": null, "buyer_types": ["retailer", "dealer", "distributor"]
+  },
+  {
+    "id": "designer-specification",
+    "question": "How do interior designers and design firms choose which products and vendors to specify for client projects, and how do they prefer vendors to approach them?",
+    "channel": null, "stage": null, "buyer_types": ["design_firm", "contract"]
+  },
+  {
+    "id": "hospitality-procurement",
+    "question": "How do hotels and hospitality groups buy furniture, fixtures and decor (FF&E)? Who decides, what is the process, and how should a vendor approach them?",
+    "channel": null, "stage": null, "buyer_types": ["hospitality", "contract", "builder"]
+  },
+  {
+    "id": "objection-handling",
+    "question": "What does research and large-scale sales data say about handling common B2B objections: price, bad timing, 'we already have suppliers', 'send me info', and no response?",
+    "channel": null, "stage": "conversation"
+  },
+  {
+    "id": "linkedin-outreach",
+    "question": "What works in B2B outreach on LinkedIn: connection requests, first messages, and how LinkedIn should be combined with email?",
+    "channel": "linkedin", "stage": "conversation"
+  },
+  {
+    "id": "phone-openers",
+    "question": "What do studies of recorded B2B cold calls show about effective openers, call structure, and booking a meeting?",
+    "channel": "call", "stage": "conversation"
+  },
+  {
+    "id": "samples-to-first-order",
+    "question": "How should a B2B seller move an interested buyer from samples and quotes to a first order, and then to repeat orders?",
+    "channel": null, "stage": "sample"
+  },
+  {
+    "id": "trust-and-compliance",
+    "question": "What builds trust in unsolicited B2B outreach, and what do email marketing laws (EU GDPR and ePrivacy, US CAN-SPAM, UK PECR) require of cold B2B emails?",
+    "channel": "email", "stage": null
+  }
+]

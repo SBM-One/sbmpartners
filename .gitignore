@@ -2,3 +2,7 @@
 .env
 .env.*
 !.env.example
+
+# agent run outputs (drafts, notes)
+out/
+__pycache__/
