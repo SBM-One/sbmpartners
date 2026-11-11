@@ -1,0 +1,14 @@
+{
+  "name": "practice_exchange",
+  "version": 1,
+  "criteria": [
+    {"key": "relevance", "description": "Fits this buyer's business, customers and buying situation", "weight": 20},
+    {"key": "value", "description": "Gives a concrete reason this buyer would benefit (margin, sell-through, project fit), not adjectives", "weight": 20},
+    {"key": "clarity", "description": "Short, plain, easy to answer on a phone; one idea per message", "weight": 15},
+    {"key": "ask", "description": "Clear, low-effort next step that fits the buyer's stage", "weight": 15},
+    {"key": "tone", "description": "Credible, respectful and human; not pushy, generic or salesy", "weight": 10},
+    {"key": "handling", "description": "Answers the buyer's replies and objections directly and honestly (null if the buyer never replied)", "weight": 10},
+    {"key": "honesty", "description": "No invented facts, fake urgency, or pressure; follows email law (identifies sender, easy opt-out)", "weight": 10}
+  ],
+  "rules": "Score each criterion 0-10. If honesty is below 5 (invented facts, manipulation, or illegal practice), the total is capped at 40."
+}

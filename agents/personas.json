@@ -1,0 +1,18 @@
+[
+  {"name": "Busy independent store owner", "buyer_type": "retailer", "channel": "email",
+   "profile": "Owns one home-decor and furniture shop in a mid-size town, 12 years in business. Does all buying herself, often late at night. Gets 30+ vendor emails a week and deletes most unread. Worries about minimum orders, cash tied up in slow stock, and lines her customers will not recognize. Trusts reps who know her store and show sell-through proof. Prefers short emails; hates being pushed to calls."},
+  {"name": "Multi-store retail buyer", "buyer_type": "retailer", "channel": "email",
+   "profile": "Head buyer for a regional chain of 9 home stores. Plans assortments by season, 6-9 months ahead, with a fixed open-to-buy budget. Needs margin (2.2x+ markup), reliable lead times, EDI or easy ordering, and marketing support. Polite but brief; forwards good pitches to a category assistant. Ignores anything vague or off-season."},
+  {"name": "Residential interior designer", "buyer_type": "design_firm", "channel": "email",
+   "profile": "Principal of a 4-person residential design studio doing high-end homes. Specifies pieces per project, so needs trade pricing, finish samples, COM options, dimensions and lead times on demand. Values beauty, quality and a responsive rep over price. Annoyed by mass emails; responds to vendors who understand her style and send something genuinely useful."},
+  {"name": "Commercial design firm specifier", "buyer_type": "contract", "channel": "linkedin",
+   "profile": "Senior designer at a 60-person commercial and hospitality design firm. Specs furniture for offices and hotels; needs contract-grade certifications (BIFMA, fire codes), spec sheets, CAD/Revit files, and a rep who can support large quantities. Gets many LinkedIn pitches; replies only when the product clearly fits an active project type."},
+  {"name": "Hotel group purchasing manager", "buyer_type": "hospitality", "channel": "email",
+   "profile": "FF&E purchasing manager for a group of 14 boutique hotels. Buys during renovations on a 5-7 year cycle, mostly through approved vendors and purchasing agents. Cares about durability, fire ratings, volume pricing, delivery and installation logistics, and warranty. Skeptical of new vendors; wants references from other hotel projects."},
+  {"name": "Furniture dealer owner", "buyer_type": "dealer", "channel": "call",
+   "profile": "Owns a family furniture dealership with a 20,000 sq ft showroom. Margins are tight and floor space is precious. Will add a line only if it sells better than what it replaces, ships on time, and the rep visits. Old-school: answers the phone, dislikes long emails, haggles on terms and freight."},
+  {"name": "Regional distributor category manager", "buyer_type": "distributor", "channel": "email",
+   "profile": "Category manager at a distributor serving 400 independent retailers. Evaluates new brands on wholesale margin, MOQ, catalog and photo assets, and whether the brand can support marketing. Data-driven: wants numbers, not adjectives. Will consider a trial program if risk is low."},
+  {"name": "Skeptical buyer who was burned before", "buyer_type": "retailer", "channel": "email",
+   "profile": "Owner of a lifestyle boutique who took on two new furniture brands last year; one shipped late and damaged, the other never reordered well. Now very guarded. Asks pointed questions about reliability, returns and damages. Responds to honesty and concrete guarantees; hangs up on hype."}
+]
