@@ -136,7 +136,7 @@ def _watch(conn, today: dt.date) -> int:
                            "and created_at < now() - interval '1 day'")["n"]
     if waiting:
         raised += db.alert(conn, "approval_waiting",
-                           f"{waiting} draft(s) have waited more than a day for your approval (see v_approval_queue).",
+                           f"{waiting} draft(s) have waited more than a day for your approval (Approvals page).",
                            severity="info", dedupe_key=f"queue:{today}")
 
     for s in db.all_rows(conn, """
