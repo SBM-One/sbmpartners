@@ -6,11 +6,12 @@ the database is the shared memory, so nothing is forgotten between runs.
 | Agent | Job | Status |
 |---|---|---|
 | Researcher | Studies sales research on the web and drafts playbook entries, with sources | built |
-| Prospect researcher | Looks up each real buyer before outreach | planned |
-| Writer | Writes outreach (email, LinkedIn, call openers) using approved playbook entries only | built (practice) |
+| Prospect researcher | Looks up each real buyer on the web before outreach, keeping only facts from pages it opened | built |
+| Writer | Writes outreach (email, LinkedIn, call openers) using approved playbook entries only | built |
 | Mock buyers | Play 8 buyer types in practice exchanges | built |
-| Grader | Scores each exchange from 0 to 100 against a rubric | built |
-| Supervisor | Watches scores, flags problems, writes reports for dashboards | planned |
+| Grader | Scores each practice exchange and every real draft from 0 to 100 against a rubric | built |
+| Supervisor | Hands out work, paces outreach, enforces budgets, raises alerts (fixed rules, no AI cost) | built |
+| Reporter | Writes each client's weekly report from the database numbers, for your approval | built |
 
 ## The Researcher
 
@@ -79,3 +80,49 @@ Change them with `SBM_WRITER_MODEL`, `SBM_GRADER_MODEL` and `SBM_BUYER_MODEL`.
 ### Test without a key
 
 `python -m tests.test_researcher` and `python -m tests.test_practice` run the whole flow with a fake AI, at no cost.
+
+## The agent team (real campaigns)
+
+`python -m agents.team run` keeps the team working. Every 5 minutes the **Supervisor** checks the
+database and hands out tasks; each agent picks up its own kind of task from the `tasks` table.
+
+For each live campaign:
+1. The Supervisor picks the best-fit buyers in `campaign_targets` (never anyone marked do-not-contact),
+   up to the client's `daily_draft_limit` per day (20 unless changed).
+2. The **Prospect researcher** looks each one up on the web. Facts from pages it didn't actually open are dropped.
+3. The **Writer** drafts the first message from the client's fact sheet, the approved playbook and the research.
+   The **Grader** scores it; below the Writer's `min_score` (80) it gets one rewrite with the Grader's feedback.
+4. The draft waits in `outreach_drafts` with status `pending_review`. **Nothing is ever sent from here.**
+
+Every Monday the **Reporter** drafts last week's report for each client (`reports`, status `draft`).
+Clients only ever see reports you set to `approved`.
+
+### Before the first real run
+1. In Supabase, run `db/migrations/0003_agent_team.sql`, then `db/tests/verify_team.sql` (SQL Editor, paste, Run).
+2. Save the brand's fact sheet (same shape as `sample_client.json`):
+   `python -m agents.team set-brief --client "Brand name" --file brief.json`
+3. Approve playbook entries (status `active`), and add buyers to a campaign's `campaign_targets`, campaign status `live`.
+
+### Approve or reject drafts
+Until the dashboard is built: Supabase → Table Editor → `outreach_drafts` (or SQL Editor:
+`select * from v_approval_queue`). Change `status` to `approved` or `rejected`, and add a `review_note` if you like.
+The database refuses to approve anything for a do-not-contact buyer, and refuses `sent` unless it was approved first.
+
+### Spending caps
+Each agent has a monthly budget in `agents.monthly_budget_cents` (Writer and Grader $100, Prospect researcher $50,
+Reporter $20). At 80% you get a warning alert; at 100% the Supervisor pauses that agent and raises an urgent alert.
+It resumes on the 1st of the month, or as soon as you raise the budget. See spend with
+`python -m agents.team status` or `select * from v_agent_spend_month`.
+
+### Run it on a cloud server instead of your Mac
+The repo includes a `Dockerfile` and `Procfile`, so Railway or Fly.io can run it as-is: create a project from
+this GitHub repo, add `DATABASE_URL` and `ANTHROPIC_API_KEY` as secrets (variables) in their dashboard, and
+deploy. It runs `python -m agents.team run` and restarts on its own if it crashes.
+
+### Models
+Writer and Grader: Claude Opus. Prospect researcher and Reporter: Claude Sonnet (cheaper). Change them with
+`SBM_WRITER_MODEL`, `SBM_GRADER_MODEL`, `SBM_PROSPECT_MODEL`, `SBM_REPORTER_MODEL`.
+
+### Test without a key
+`TEST_DATABASE_URL=postgresql:///sbm_test python -m tests.test_team` runs the whole team with a fake AI against a
+throwaway local database (see the file's header). It checks pacing, rewrites, source checks, budget caps, retries and alerts.

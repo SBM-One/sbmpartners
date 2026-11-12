@@ -6,8 +6,10 @@ One source of truth. Tools, agents, the supervisor and dashboards all read and w
 |---|---|
 | `migrations/0001_core.sql` | Tables, indexes and dashboard views. Runs on any PostgreSQL 15+ with `pgvector`. |
 | `migrations/0002_supabase_privacy.sql` | Row-level security: client-portal users see only their own client's rows; the buyer network stays internal. Supabase only. |
+| `migrations/0003_agent_team.sql` | The agent team: task queue (`tasks`), approval queue (`outreach_drafts`), monthly spending caps, client fact sheets, and report approval. |
 | `seed/pilot_example.sql` | Made-up pilot data for testing. Don't load in production. |
 | `tests/verify_privacy.sql` | Checks the privacy rules with throwaway test logins. Rolls back, so it saves nothing. |
+| `tests/verify_team.sql` | Checks the team rules: each task goes to one agent, nothing is sent without approval, do-not-contact is enforced, clients see only approved reports. Rolls back. |
 | `local/supabase_mock.sql` | Local testing only: stands in for Supabase's roles and `auth.uid()`. Never run on Supabase. |
 
 ## Main areas
@@ -15,8 +17,8 @@ One source of truth. Tools, agents, the supervisor and dashboards all read and w
 - **Clients:** `clients`, `client_users`, `collections`, `assets` (sales materials), `campaigns`, `campaign_targets`.
 - **Activity log:** `interactions` (every email, reply, call, meeting, sample, quote and order), plus `deals`.
 - **Agents and training:** `agents`, `playbook_entries`, `rubrics`, `personas`, `simulations`, `grades`.
-- **Supervisor:** `agent_runs`, `alerts`, `reports`.
-- **Dashboard views:** `v_client_weekly` (weekly results per client), `v_agent_scorecard` (grades next to real reply rates per bot).
+- **Supervisor and team:** `tasks` (the team's to-do list), `outreach_drafts` (messages waiting for approval), `agent_runs` (cost of every run), `alerts`, `reports`.
+- **Dashboard views:** `v_client_weekly` (weekly results per client), `v_agent_scorecard` (grades next to real reply rates per bot), `v_approval_queue` (drafts waiting for you), `v_agent_spend_month` (each agent's spend against its budget), `v_team_status` (tasks by kind and status).
 
 ## Connect to Supabase
 
@@ -31,8 +33,12 @@ Keys and passwords live only in a local `.env` file (ignored by git) or in your 
 **Option A: Supabase SQL editor (no installs).** Open SQL Editor → New query, paste and run each file in this order:
 1. `migrations/0001_core.sql`
 2. `migrations/0002_supabase_privacy.sql`
-3. `seed/pilot_example.sql` (test projects only)
-4. `tests/verify_privacy.sql`: the last result should read "All privacy checks passed. Nothing was saved."
+3. `migrations/0003_agent_team.sql`
+4. `seed/pilot_example.sql` (test projects only)
+5. `tests/verify_privacy.sql`: the last result should read "All privacy checks passed. Nothing was saved."
+6. `tests/verify_team.sql`: the last result should read "All team checks passed. Nothing was saved."
+
+Already set up with 0001 and 0002? Run only `0003_agent_team.sql`, then the two checks.
 
 **Option B: from a terminal** (needs `psql`):
 ```bash
@@ -40,7 +46,7 @@ scripts/db_setup.sh --seed     # migrations + pilot data + privacy checks
 scripts/db_setup.sh            # migrations + privacy checks, no pilot data
 scripts/db_setup.sh --verify   # re-run only the privacy checks
 ```
-The script stops at the first error, and skips the migrations if the schema is already installed.
+The script stops at the first error and only applies migrations that aren't installed yet.
 
 ## What the privacy check proves
 - A client's portal login sees only its own client, campaigns, activity, deals, reports and client-facing alerts, and the weekly dashboard view only shows its own numbers.
