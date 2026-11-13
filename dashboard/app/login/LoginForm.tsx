@@ -25,18 +25,17 @@ export default function LoginForm() {
   }
 
   if (state === "sent") {
-    return <p>Check <b>{email}</b> for a sign-in link. You can close this tab.</p>;
+    return <p className="notice ok">Check <b>{email}</b> for your sign-in link. You can close this tab.</p>;
   }
   return (
-    <form onSubmit={send}>
-      <label htmlFor="email">Work email</label>
-      <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
-      <div style={{ marginTop: 14 }}>
-        <button className="btn primary" disabled={state === "sending"}>
-          {state === "sending" ? "Sending…" : "Send sign-in link"}
-        </button>
-      </div>
-      {state === "error" && <p className="pill bad" style={{ marginTop: 12 }}>{message}</p>}
+    <form onSubmit={send} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <label className="field"><span>Work email</span>
+        <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoFocus placeholder="you@company.com" />
+      </label>
+      <button className="btn primary dash" disabled={state === "sending"} style={{ padding: "12px 20px" }}>
+        {state === "sending" ? "Sending…" : "Send sign-in link"}
+      </button>
+      {state === "error" && <p className="notice">{message}</p>}
     </form>
   );
 }
