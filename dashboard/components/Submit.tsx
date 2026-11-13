@@ -7,7 +7,7 @@ export default function Submit({ children, className = "", name, value, confirm,
 }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" name={name} value={value} disabled={pending} className={`btn ${className}`} title={title}
+    <button type="submit" name={name} value={value} disabled={pending} className={className.includes("textbtn") ? className : `btn ${className}`} title={title}
       onClick={(e) => { if (confirm && !window.confirm(confirm)) e.preventDefault(); }}>
       {pending ? "Saving…" : children}
     </button>

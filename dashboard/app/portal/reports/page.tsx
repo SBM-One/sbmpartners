@@ -3,7 +3,6 @@ import { requirePortal } from "@/lib/auth";
 import { portalHref, portalQuery } from "@/lib/portal";
 import { dayLong } from "@/lib/format";
 import PortalHeader from "@/components/PortalHeader";
-import Icon from "@/components/Icon";
 
 type Report = { id: string; kind: string; period_start: Date; period_end: Date; summary: string | null };
 
@@ -17,29 +16,22 @@ export default async function PortalReports({ searchParams }: { searchParams: Pr
   return (
     <>
       <PortalHeader scope={scope} />
-      <main className="pmain">
-        <header className="ph rise">
-          <div>
-            <span className="eyebrow">Reports</span>
-            <h1>Your weekly <em className="accent">reports.</em></h1>
-            <p>Every Monday your SBM Partners team writes up what happened, what came back and what&apos;s next.</p>
-          </div>
-        </header>
-        {reports.length === 0 ? <div className="empty boxed"><b>Your first report arrives on Monday</b>We&apos;ll email you when it&apos;s ready.</div> : (
-          <div className="card list report-list rise d1">
-            {reports.map((r, i) => (
-              <Link className="item" key={r.id} href={portalHref(scope, `/portal/reports/${r.id}`)} style={{ alignItems: "center", padding: "20px 24px" }}>
-                <span className="monogram" style={{ fontSize: 18 }}>{i === 0 ? "★" : "W"}</span>
-                <div className="body">
-                  <div className="title" style={{ fontSize: 16 }}>{r.summary ?? `${r.kind === "weekly" ? "Weekly" : "Monthly"} report`}</div>
-                  <div className="meta">{dayLong(r.period_start)} to {dayLong(r.period_end)}</div>
-                </div>
-                {i === 0 && <span className="pill gold">Latest</span>}
-                <span className="end muted"><Icon name="arrow" size={18} /></span>
-              </Link>
-            ))}
-          </div>
-        )}
+      <main className="frame">
+        <h1 className="statement" style={{ marginTop: 56 }}>Every Monday we write to you about the week.</h1>
+        <section className="section tight">
+          <div className="sh"><h2>Letters<span className="count">{reports.length}</span></h2></div>
+          {reports.length === 0 ? <p className="empty">Your first letter arrives on Monday.</p> : (
+            <div className="index">
+              {reports.map((r) => (
+                <Link key={r.id} href={portalHref(scope, `/portal/reports/${r.id}`)}>
+                  <span className="d">{dayLong(r.period_start)}</span>
+                  <span className="t">{r.summary ?? `${r.kind === "weekly" ? "Weekly" : "Monthly"} letter`}</span>
+                  <span className="r">Read</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
       </main>
     </>
   );

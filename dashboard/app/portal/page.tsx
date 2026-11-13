@@ -1,197 +1,154 @@
 import Link from "next/link";
 import { requirePortal } from "@/lib/auth";
 import { portalHref, portalQuery } from "@/lib/portal";
-import { ago, change, day, greeting, money, num } from "@/lib/format";
-import { ACTIVITY, BUYER_TYPES, STAGES } from "@/lib/pipeline";
+import { ago, day, money, num, today } from "@/lib/format";
+import { ACTIVITY, BUYER_TYPES, STAGES, stageName } from "@/lib/pipeline";
 import PortalHeader from "@/components/PortalHeader";
-import Icon from "@/components/Icon";
-import { BarChart, Delta, Sparkline } from "@/components/Charts";
 
-type Week = { week: Date; touches: number; replies: number; meetings: number; samples: number; quotes: number; orders: number; order_value: number };
-type Totals = { touches: number; touches_prev: number; replies: number; replies_prev: number; meetings: number; meetings_prev: number;
-  samples: number; samples_prev: number; orders: number; value: number; value_prev: number; buyers: number };
-type Stage = { stage: string; deals: number; value: number };
-type Activity = { id: string; occurred_at: Date; kind: string; company: string | null; buyer_type: string | null; city: string | null;
-  state: string | null; contact_title: string | null; value_cents: number | null };
-type Report = { id: string; period_start: Date; period_end: Date; summary: string | null; body: string | null };
-type Update = { id: string; message: string; created_at: Date; severity: string };
+type Buyer = { id: string; company: string | null; buyer_type: string | null; city: string | null; state: string | null;
+  stage: string; value_cents: number | null; last_kind: string | null; last_at: Date | null };
+type Month = { buyers: number; replies: number; meetings: number; others: number };
+type Report = { id: string; period_start: Date; period_end: Date; summary: string | null; body: string | null; total: number };
+type Note = { id: string; message: string; created_at: Date; severity: string };
 
-export default async function PortalOverview({ searchParams }: { searchParams: Promise<{ client?: string }> }) {
+const ORDER = ["repeat", "first_order", "quote", "sample", "conversation", "lost"];
+const WON = ["first_order", "repeat"];
+
+/** The client's page: one sentence on where things stand, every buyer behind it, and the latest letter. */
+export default async function PortalHome({ searchParams }: { searchParams: Promise<{ client?: string }> }) {
   const scope = await requirePortal((await searchParams).client);
   const id = scope.clientId;
 
-  const data = await portalQuery(scope, async (q) => {
-    const weeks = await q<Week[]>`
-      select g.week::date as week, coalesce(v.touches, 0)::int as touches, coalesce(v.replies, 0)::int as replies,
-             coalesce(v.meetings, 0)::int as meetings, coalesce(v.samples, 0)::int as samples, coalesce(v.quotes, 0)::int as quotes,
-             coalesce(v.orders, 0)::int as orders, coalesce(v.order_value_cents, 0) / 100.0 as order_value
-      from generate_series(date_trunc('week', now()) - interval '9 weeks', date_trunc('week', now()), interval '1 week') g(week)
-      left join v_client_weekly v on v.client_id = ${id} and v.week = g.week::date
-      order by g.week`;
-    const [totals] = await q<Totals[]>`
-      select count(*) filter (where kind = 'sent' and occurred_at > now() - interval '30 days')::int as touches,
-             count(*) filter (where kind = 'sent' and occurred_at <= now() - interval '30 days')::int as touches_prev,
-             count(*) filter (where kind = 'reply' and occurred_at > now() - interval '30 days')::int as replies,
-             count(*) filter (where kind = 'reply' and occurred_at <= now() - interval '30 days')::int as replies_prev,
-             count(*) filter (where kind = 'meeting_booked' and occurred_at > now() - interval '30 days')::int as meetings,
-             count(*) filter (where kind = 'meeting_booked' and occurred_at <= now() - interval '30 days')::int as meetings_prev,
-             count(*) filter (where kind in ('sample_sent','quote_sent') and occurred_at > now() - interval '30 days')::int as samples,
-             count(*) filter (where kind in ('sample_sent','quote_sent') and occurred_at <= now() - interval '30 days')::int as samples_prev,
-             count(*) filter (where kind in ('order','reorder') and occurred_at > now() - interval '30 days')::int as orders,
-             coalesce(sum(value_cents) filter (where kind in ('order','reorder') and occurred_at > now() - interval '30 days'), 0) / 100.0 as value,
-             coalesce(sum(value_cents) filter (where kind in ('order','reorder') and occurred_at <= now() - interval '30 days'), 0) / 100.0 as value_prev,
-             count(distinct company) filter (where kind = 'sent' and occurred_at > now() - interval '30 days')::int as buyers
-      from v_portal_activity where client_id = ${id} and occurred_at > now() - interval '60 days'`;
-    const stages = await q<Stage[]>`
-      select stage, count(*)::int as deals, coalesce(sum(value_cents), 0) / 100.0 as value
-      from v_portal_pipeline where client_id = ${id} group by stage`;
-    const activity = await q<Activity[]>`
-      select id, occurred_at, kind, company, buyer_type, city, state, contact_title, value_cents
-      from v_portal_activity
-      where client_id = ${id} and kind in ('reply','meeting_booked','meeting_held','sample_sent','quote_sent','order','reorder')
-      order by occurred_at desc limit 8`;
+  const { buyers, month, report, notes } = await portalQuery(scope, async (q) => {
+    const buyers = await q<Buyer[]>`
+      select p.id, p.company, p.buyer_type, p.city, p.state, p.stage, p.value_cents, l.kind as last_kind, l.occurred_at as last_at
+      from v_portal_pipeline p
+      left join lateral (select a.kind, a.occurred_at from v_portal_activity a
+                         where a.client_id = p.client_id and a.company = p.company and a.kind <> 'sent'
+                         order by a.occurred_at desc limit 1) l on true
+      where p.client_id = ${id}
+      order by array_position(${ORDER}::text[], p.stage), p.value_cents desc nulls last, l.occurred_at desc nulls last`;
+    const [month] = await q<Month[]>`
+      select count(distinct company) filter (where kind = 'sent' and occurred_at > now() - interval '30 days')::int as buyers,
+             count(distinct company) filter (where kind = 'reply' and occurred_at > now() - interval '30 days')::int as replies,
+             count(distinct company) filter (where kind = 'meeting_booked' and occurred_at > now() - interval '30 days')::int as meetings,
+             count(distinct company) filter (where company not in (select company from v_portal_pipeline where client_id = ${id} and company is not null))::int as others
+      from v_portal_activity where client_id = ${id}`;
     const [report] = await q<Report[]>`
-      select id, period_start, period_end, summary, body from reports
+      select id, period_start, period_end, summary, body, count(*) over ()::int as total from reports
       where client_id = ${id} and status in ('approved','sent') order by period_start desc limit 1`;
-    const updates = await q<Update[]>`
+    const notes = await q<Note[]>`
       select id, message, created_at, severity::text from alerts
       where client_id = ${id} and notify_client and status <> 'resolved' order by created_at desc limit 3`;
-    const [camp] = await q<{ live: number }[]>`select count(*)::int as live from campaigns where client_id = ${id} and status = 'live'`;
-    return { weeks, totals, stages, activity, report, updates, live: camp.live };
+    return { buyers, month, report, notes };
   });
 
-  const t = data.totals;
-  const open = STAGES.filter((s) => s.key !== "repeat").reduce((n, s) => n + (data.stages.find((x) => x.stage === s.key)?.deals ?? 0), 0);
-  const openValue = data.stages.filter((s) => ["sample", "quote"].includes(s.stage)).reduce((n, s) => n + s.value, 0);
-  const maxDeals = Math.max(1, ...data.stages.map((s) => s.deals));
-  const firstName = scope.preview ? scope.clientName : scope.viewerName;
+  const won = buyers.filter((b) => WON.includes(b.stage));
+  const deciding = buyers.filter((b) => b.stage === "sample" || b.stage === "quote");
+  const sum = (list: Buyer[]) => list.reduce((n, b) => n + (b.value_cents ?? 0) / 100, 0);
+  const plural = (n: number, one: string, many: string) => `${num(n)} ${n === 1 ? one : many}`;
+  const Plural = (n: number, one: string, many: string) => `${spell(n)} ${n === 1 ? one : many}`;
 
   return (
     <>
       <PortalHeader scope={scope} />
-      <main className="pmain">
-        <section className="hero">
-          <div className="rise">
-            <span className="eyebrow">{greeting(firstName)}</span>
-            <h1>Your growth, <em>in plain view.</em></h1>
-            <p className="lede">
-              In the last 30 days we reached <b>{num(t.buyers)} buyers</b> for {scope.clientName}. {num(t.replies)} replied,
-              {" "}{num(t.meetings)} meeting{t.meetings === 1 ? " was" : "s were"} booked and {money(t.value)} in orders came in.
-            </p>
-            <div className="facts-row">
-              <span><span className="dot ok" /> {data.live} live campaign{data.live === 1 ? "" : "s"}</span>
-              <span><span className="dot info" /> {open} buyer{open === 1 ? "" : "s"} in your pipeline</span>
-              {scope.plan && <span><span className="dot" style={{ background: "var(--gold)" }} /> {scope.plan.charAt(0).toUpperCase() + scope.plan.slice(1)} plan</span>}
-            </div>
-          </div>
-          <div className="feature statement rise d1">
-            <span className="eyebrow">Orders, last 30 days</span>
-            <div className="figure">{money(t.value)}</div>
-            <div className="figure-sub">
-              {t.orders} order{t.orders === 1 ? "" : "s"} · {money(openValue)} more in samples and quotes · <Delta pct={change(t.value, t.value_prev)} />
-            </div>
-            <BarChart height={150} format={money}
-              data={data.weeks.map((w) => ({ label: day(w.week), value: w.order_value, title: `Orders, week of ${day(w.week)}` }))} />
-          </div>
-        </section>
-
-        <section className="grid g4">
-          <Stat label="Outreach sent" value={t.touches} pct={change(t.touches, t.touches_prev)} trend={data.weeks.map((w) => w.touches)} />
-          <Stat label="Replies" value={t.replies} pct={change(t.replies, t.replies_prev)} trend={data.weeks.map((w) => w.replies)}
-            note={t.touches ? `${((t.replies / t.touches) * 100).toFixed(1)}% reply rate` : undefined} />
-          <Stat label="Meetings booked" value={t.meetings} pct={change(t.meetings, t.meetings_prev)} trend={data.weeks.map((w) => w.meetings)} />
-          <Stat label="Samples and quotes" value={t.samples} pct={change(t.samples, t.samples_prev)} trend={data.weeks.map((w) => w.samples + w.quotes)} />
-        </section>
-
-        <div className="section-title">
-          <h2>Where every buyer stands</h2>
-          <Link className="btn sm dash" href={portalHref(scope, "/portal/pipeline")}>See the full pipeline</Link>
-        </div>
-        <section className="card stages rise">
-          {STAGES.map((s) => {
-            const row = data.stages.find((x) => x.stage === s.key);
-            return (
-              <div className={`stage ${s.key === "first_order" || s.key === "repeat" ? "won" : ""}`} key={s.key}>
-                <span className="step">{s.step}</span>
-                <div className="n">{row?.deals ?? 0}</div>
-                <div className="name">{s.name}</div>
-                <div className="v">{row?.value ? money(row.value) : "No value yet"}</div>
-                <div className="track"><i style={{ width: `${((row?.deals ?? 0) / maxDeals) * 100}%` }} /></div>
-              </div>
-            );
-          })}
-        </section>
-
-        <section className="split" style={{ marginTop: 16 }}>
-          <div className="card">
-            <div className="card-head"><h3>Latest from your buyers</h3><span className="note">Replies, meetings, samples and orders</span></div>
-            {data.activity.length === 0 ? <div className="empty"><b>Nothing yet</b>Replies and meetings will appear here as they happen.</div> : (
-              <ul className="timeline">
-                {data.activity.map((a) => {
-                  const k = ACTIVITY[a.kind] ?? { label: a.kind, icon: "spark" };
-                  return (
-                    <li key={a.id}>
-                      <span className={`ico ${k.tone ?? ""}`}><Icon name={k.icon} /></span>
-                      <div>
-                        <div className="t">{k.label}{a.company ? ` · ${a.company}` : ""}{a.value_cents ? ` · ${money(a.value_cents / 100)}` : ""}</div>
-                        <div className="m">{[a.contact_title, BUYER_TYPES[a.buyer_type ?? ""] ?? null, [a.city, a.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ")}</div>
-                      </div>
-                      <span className="when">{ago(a.occurred_at)}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div className="card pad letter-teaser">
-              <span className="eyebrow">This week&apos;s report</span>
-              {data.report ? (
-                <>
-                  <h3>{data.report.summary ?? "Your weekly report"}</h3>
-                  <div className="xs muted">Week of {day(data.report.period_start)} to {day(data.report.period_end)}</div>
-                  <p className="excerpt">{excerpt(data.report.body)}</p>
-                  <Link className="btn primary dash" style={{ alignSelf: "flex-start" }} href={portalHref(scope, `/portal/reports/${data.report.id}`)}>Read the report</Link>
-                </>
-              ) : <p className="muted">Your first weekly report arrives on Monday.</p>}
-            </div>
-            {data.updates.length > 0 && (
-              <div className="card">
-                <div className="card-head"><h3>Updates from your team</h3></div>
-                <div className="list" style={{ marginTop: 8 }}>
-                  {data.updates.map((u) => (
-                    <div className="item" key={u.id}>
-                      <span className={`dot ${u.severity === "urgent" ? "urgent" : "info"}`} />
-                      <div className="body"><div style={{ fontSize: 13.5 }}>{u.message}</div><div className="meta">{ago(u.created_at)}</div></div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-        <p className="xs faint" style={{ marginTop: 28, textAlign: "center" }}>
-          Prepared for {scope.clientName} by SBM Partners. Figures update as activity happens.
+      <main className="frame">
+        <div className="dateline"><span>{today()}</span></div>
+        <h1 className="statement">
+          {won.length > 0 ? (
+            <>{Plural(won.length, "buyer we found has", "buyers we found have")} placed <span className="won">{money(sum(won))}</span> in orders.</>
+          ) : <>We are introducing {scope.clientName} to the right buyers.</>}
+          {deciding.length > 0 && <> {Plural(deciding.length, "more is", "more are")} deciding, worth {money(sum(deciding))}.</>}
+        </h1>
+        <p className="standfirst">
+          In the last 30 days we wrote to <b>{plural(month.buyers, "buyer", "buyers")}</b> on your behalf.{" "}
+          <b>{num(month.replies)}</b> replied and <b>{num(month.meetings)}</b> agreed to meet.
         </p>
+        {notes.length > 0 && (
+          <div className="notes">
+            {notes.map((n) => (
+              <p key={n.id} className={n.severity === "urgent" ? "alarm" : ""}><span>{day(n.created_at)}</span><span>{n.message}</span></p>
+            ))}
+          </div>
+        )}
+
+        <section className="section" id="buyers">
+          <div className="sh">
+            <h2>The buyers<span className="count">{buyers.length}</span></h2>
+            <span className="aside">Every buyer in conversation with you, furthest along first</span>
+          </div>
+          {buyers.length === 0 ? <p className="empty">Buyers appear here the day they reply.</p> : (
+            <div className="scroll">
+              <table className="ledger">
+                <thead>
+                  <tr>
+                    <th>Buyer</th>
+                    <th style={{ width: "40%" }}><div className="steps">{STAGES.map((s) => <span key={s.key}>{s.name}</span>)}</div></th>
+                    <th className="num">Value</th>
+                    <th style={{ width: 190 }}>Latest</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {buyers.map((b) => {
+                    const at = STAGES.findIndex((s) => s.key === b.stage);
+                    const isWon = WON.includes(b.stage);
+                    return (
+                      <tr key={b.id} className={b.stage === "lost" ? "closed" : ""}>
+                        <td>
+                          <div className="name">{b.company ?? "Buyer"}</div>
+                          <div className="sub">{[BUYER_TYPES[b.buyer_type ?? ""] ?? "Buyer", [b.city, b.state].filter(Boolean).join(", ")].filter(Boolean).join(", ")}</div>
+                        </td>
+                        <td>
+                          <div className={`track ${isWon ? "won" : ""}`} aria-label={stageName(b.stage)}>
+                            {STAGES.map((s, i) => <i key={s.key} className={i <= at ? `on ${i === at ? "at" : ""}` : ""} />)}
+                          </div>
+                          <div className="where">{stageName(b.stage)}</div>
+                        </td>
+                        <td className={`num ${isWon ? "won" : ""}`} style={{ paddingTop: 20 }}>{b.value_cents ? money(b.value_cents / 100) : <span className="faint">–</span>}</td>
+                        <td className="small" style={{ paddingTop: 20 }}>
+                          {b.last_kind ? <>{ACTIVITY[b.last_kind] ?? b.last_kind}<div className="muted">{ago(b.last_at)}</div></> : <span className="faint">–</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {month.others > 0 && (
+            <p className="after">We have also written to {plural(month.others, "other buyer who hasn't", "other buyers who haven't")} replied yet. They join this list the day they do.</p>
+          )}
+        </section>
+
+        <section className="section">
+          <div className="sh">
+            <h2>This week&apos;s letter</h2>
+            {report && report.total > 1 && <Link className="aside" href={portalHref(scope, "/portal/reports")}>All {report.total} letters</Link>}
+          </div>
+          {report ? (
+            <div className="excerpt">
+              <div>
+                <div className="title">{report.summary ?? "Your week in brief"}</div>
+                <div className="period">{day(report.period_start)} to {day(report.period_end)}</div>
+              </div>
+              <div className="text">
+                {opening(report.body).map((p, i) => <p key={i}>{p}</p>)}
+                <div className="acts"><Link className="textbtn" href={portalHref(scope, `/portal/reports/${report.id}`)}>Read the whole letter</Link></div>
+              </div>
+            </div>
+          ) : <p className="empty">Your first letter arrives on Monday.</p>}
+        </section>
       </main>
     </>
   );
 }
 
-function Stat({ label, value, pct, trend, note }: { label: string; value: number; pct: number | null; trend: number[]; note?: string }) {
-  return (
-    <div className="card stat rise d2">
-      <div className="k">{label}<Delta pct={pct} /></div>
-      <div className="v">{num(value)}</div>
-      <div className="foot"><span>{note ?? "vs prior 30 days"}</span><Sparkline values={trend} /></div>
-    </div>
-  );
+/** The first two real paragraphs of a letter, skipping short lines that act as headings. */
+function opening(body: string | null) {
+  if (!body) return [];
+  return body.split(/\n\s*\n/).map((p) => p.trim()).filter((p) => p.length > 60).slice(0, 2);
 }
 
-function excerpt(body: string | null) {
-  if (!body) return "";
-  const paras = body.split(/\n\s*\n/).map((p) => p.trim()).filter((p) => p.length > 40);
-  const first = paras[0] ?? body;
-  return first.length > 260 ? `${first.slice(0, 257).trimEnd()}…` : first;
-}
+const WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+/** Numbers that open a sentence read better as words, the way a person would write them. */
+const spell = (n: number) => WORDS[n] ?? num(n);

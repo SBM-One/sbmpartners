@@ -9,25 +9,20 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   if (await getClientUser()) redirect("/portal");
   const { error } = await searchParams;
   return (
-    <div className="login-wrap">
-      <section className="login-art">
-        <span className="rings" aria-hidden="true" />
-        <span className="wordmark">SBM <em>Partners</em></span>
-        <h1>Great products deserve <em>more buyers.</em></h1>
-        <p>Your pipeline, your meetings and your weekly report, in one place. Partners and the SBM team sign in here.</p>
-      </section>
-      <section className="login-form">
-        <div className="box">
-          <span className="eyebrow">Sign in</span>
-          <h2>Welcome back.</h2>
-          <p className="muted">Enter your work email and we&apos;ll send you a one-time sign-in link. No password needed.</p>
-          {error === "not_allowed" && (
-            <p className="notice">That email doesn&apos;t have access yet. Ask your SBM Partners contact to add you.</p>
-          )}
-          {error === "link" && <p className="notice">That link has expired or was already used. Request a new one.</p>}
+    <div className="signin">
+      <header className="mast"><span className="wordmark">SBM<i>Partners</i></span></header>
+      <main>
+        <h1 className="statement">Where every buyer stands, and what we are doing about it.</h1>
+        <div>
+          <p className="standfirst" style={{ marginTop: 0, marginBottom: 28, fontSize: 15.5 }}>
+            Enter your work email and we will send you a link to sign in. There is no password.
+          </p>
+          {error === "not_allowed" && <p className="notice alarm" style={{ marginBottom: 20 }}>That email doesn&apos;t have access yet. Ask your SBM Partners contact to add you.</p>}
+          {error === "link" && <p className="notice alarm" style={{ marginBottom: 20 }}>That link has expired or was already used. Ask for a new one below.</p>}
           <LoginForm />
         </div>
-      </section>
+      </main>
+      <footer>For partners of SBM Partners and the SBM team.</footer>
     </div>
   );
 }

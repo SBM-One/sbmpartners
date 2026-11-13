@@ -3,7 +3,6 @@ import { sql } from "@/lib/db";
 import { ago, sentence } from "@/lib/format";
 import { reviewDraft } from "../../actions";
 import Submit from "@/components/Submit";
-import { ScoreRing } from "@/components/Charts";
 
 type Draft = {
   id: string; created_at: Date; client: string; contact: string; contact_title: string | null; email: string | null;
@@ -14,6 +13,8 @@ type Draft = {
 };
 type Recent = { id: string; status: string; reviewed_at: Date | null; reviewed_by: string | null; contact: string;
   company: string | null; client: string; subject: string | null; review_note: string | null };
+
+const WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
 
 export default async function Approvals() {
   await requireStaff();
@@ -39,102 +40,90 @@ export default async function Approvals() {
 
   return (
     <>
-      <header className="ph rise">
-        <div>
-          <span className="eyebrow">Approvals</span>
-          <h1>Nothing leaves <em className="accent">without you.</em></h1>
-          <p>Each draft sits next to the research behind it and the Grader&apos;s notes. Edit anything you like; what you
-            approve is exactly what gets sent.</p>
-        </div>
-        <div className="aside"><span className="pill blue">{drafts.length} waiting</span></div>
-      </header>
+      <h1 className="statement" style={{ marginTop: 56 }}>
+        {drafts.length === 0 ? "No drafts are waiting." : `${WORDS[drafts.length] ?? drafts.length} draft${drafts.length === 1 ? " is" : "s are"} waiting.`}
+        {" "}Nothing reaches a buyer until you approve it.
+      </h1>
+      <p className="standfirst">Edit anything. What you approve is exactly what goes out. The research and the Grader&apos;s notes sit under each draft.</p>
 
-      {drafts.length === 0 && (
-        <div className="empty boxed"><b>The queue is clear</b>The agents will add new drafts as they research buyers.</div>
-      )}
-
-      {drafts.map((d, i) => {
-        const tone = d.score == null ? "" : d.score >= 80 ? "ok" : d.score >= 65 ? "warning" : "bad";
-        const verdict = d.score == null ? "Not graded" : d.score >= 80 ? "Ready to send" : d.score >= 65 ? "Worth a second look" : "Needs rework";
-        return (
-          <article className={`card lift draft rise d${Math.min(i + 1, 4)}`} key={d.id}>
-            <form action={reviewDraft} className="compose">
-              <input type="hidden" name="id" value={d.id} />
-              <div className="to">
-                <span className="monogram">{(d.company ?? d.contact ?? "?").charAt(0)}</span>
-                <div>
-                  <h3>{d.contact || "(no name)"}{d.company ? <span className="muted" style={{ fontWeight: 400 }}> · {d.company}</span> : ""}</h3>
-                  <div className="meta">{d.contact_title ?? "Role unknown"} · {sentence(d.buyer_type) || "Buyer"}{d.email ? ` · ${d.email}` : ""}</div>
+      <section className="section tight">
+        <div className="sh"><h2>Drafts<span className="count">{drafts.length}</span></h2><span className="aside">Oldest first</span></div>
+        {drafts.length === 0 && <p className="empty">The agents add new drafts as they research buyers.</p>}
+        {drafts.map((d) => {
+          const verdict = d.score == null ? "Not graded yet." : d.score >= 80 ? "Ready to send." : d.score >= 65 ? "Worth a second look." : "Needs rework.";
+          return (
+            <article className="spread" key={d.id} id={`d-${d.id}`}>
+              <div className="who">
+                <h3>{d.contact || "(no name)"}</h3>
+                <div className="sub">{[d.contact_title, d.company].filter(Boolean).join(", ") || "Role unknown"}</div>
+                <dl className="facts">
+                  <dt>For</dt><dd>{d.client}</dd>
+                  <dt>Buyer</dt><dd>{sentence(d.buyer_type) || "Unknown"}</dd>
+                  <dt>Send by</dt><dd>{sentence(d.channel)}, {d.step > 1 ? `follow-up ${d.step - 1}` : "first message"}</dd>
+                  {d.email && <><dt>To</dt><dd style={{ wordBreak: "break-all" }}>{d.email}</dd></>}
+                  <dt>Written</dt><dd>{ago(d.created_at)}</dd>
+                </dl>
+                <div className={`grade ${d.score != null && d.score < 65 ? "low" : ""}`}>
+                  <b>{d.score ?? "–"}</b>out of 100. {verdict}
+                  {(d.rewrites > 0 || d.research?.fit != null) && (
+                    <div className="muted" style={{ marginTop: 4 }}>
+                      {[d.rewrites > 0 && "Rewritten once", d.research?.fit != null && `Fit ${d.research.fit} of 5`].filter(Boolean).join(". ")}.
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="row">
-                <span className="pill gold">For {d.client}</span>
-                <span className="pill">{sentence(d.channel)} · {d.step > 1 ? `follow-up ${d.step - 1}` : "first message"}</span>
-                <span className="pill">Written {ago(d.created_at)}</span>
-              </div>
-              {d.channel === "email" && (
-                <label className="field"><span>Subject</span><input name="subject" defaultValue={d.subject ?? ""} /></label>
-              )}
-              <label className="field message"><span>Message</span><textarea name="body" defaultValue={d.body} /></label>
-              <label className="field"><span>Note for the team (optional)</span>
-                <input name="note" placeholder="Why you approved, rejected or changed it" /></label>
-              <div className="row">
-                <Submit name="decision" value="approved" className="primary dash">Approve and queue</Submit>
-                <Submit name="decision" value="rejected" className="danger">Reject</Submit>
-              </div>
-            </form>
 
-            <aside className="dossier">
-              <div className="score">
-                <ScoreRing score={d.score} />
-                <div>
-                  <b>{verdict}</b>
-                  <span>Grader score out of 100{d.rewrites > 0 ? " · rewritten once" : ""}{d.research?.fit != null ? ` · fit ${d.research.fit}/5` : ""}</span>
+              <form action={reviewDraft} className="words">
+                <input type="hidden" name="id" value={d.id} />
+                {d.channel === "email" && <label className="field subject"><span>Subject</span><input name="subject" defaultValue={d.subject ?? ""} /></label>}
+                <label className="field body"><span>Message</span><textarea name="body" defaultValue={d.body} /></label>
+                <label className="field"><span>Note for the team, if any</span><input name="note" placeholder="Why you approved, changed or rejected it" /></label>
+                <div className="acts">
+                  <Submit name="decision" value="approved" className="solid">Approve and queue</Submit>
+                  <Submit name="decision" value="rejected" className="textbtn alarm">Reject</Submit>
+                  {d.website && <a className="textbtn quiet" href={d.website} target="_blank" rel="noreferrer noopener">Their website</a>}
                 </div>
-                <span className={`pill ${tone}`} style={{ marginLeft: "auto" }}>{d.score ?? "–"}</span>
-              </div>
-              {d.grade_feedback && <div><h4>Grader&apos;s notes</h4><div className="notes">{d.grade_feedback}</div></div>}
-              {d.research?.summary && <div><h4>What research found</h4><p className="text">{d.research.summary}</p></div>}
-              {d.research?.facts && d.research.facts.length > 0 && (
-                <div><h4>Sourced facts</h4>
-                  <ul className="facts">
-                    {d.research.facts.map((f, j) => (
-                      <li key={j}><span>{f.fact} <a href={f.source_url} target="_blank" rel="noreferrer noopener">Source</a></span></li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {d.research?.angle && <div><h4>Angle</h4><p className="text">{d.research.angle}</p></div>}
-              {d.research?.cautions && <div><h4>Cautions</h4><p className="text">{d.research.cautions}</p></div>}
-              {d.playbook_used?.length > 0 && (
-                <div><h4>Playbook used</h4><div className="tags">{d.playbook_used.map((p) => <span className="pill blue" key={p}>{p}</span>)}</div></div>
-              )}
-              {d.website && <a className="small" href={d.website} target="_blank" rel="noreferrer noopener">Open their website</a>}
-            </aside>
-          </article>
-        );
-      })}
+                <details className="research">
+                  <summary>Research and the Grader&apos;s notes</summary>
+                  <div className="body">
+                    {d.grade_feedback && <div><h4>Grader</h4><p style={{ whiteSpace: "pre-wrap" }}>{d.grade_feedback}</p></div>}
+                    {d.research?.summary && <div><h4>What research found</h4><p>{d.research.summary}</p></div>}
+                    {d.research?.facts && d.research.facts.length > 0 && (
+                      <div><h4>Sourced facts</h4>
+                        <ol>{d.research.facts.map((f, j) => <li key={j}>{f.fact} <a href={f.source_url} target="_blank" rel="noreferrer noopener">source</a></li>)}</ol>
+                      </div>
+                    )}
+                    {d.research?.angle && <div><h4>Angle</h4><p>{d.research.angle}</p></div>}
+                    {d.research?.cautions && <div><h4>Cautions</h4><p>{d.research.cautions}</p></div>}
+                    {d.playbook_used?.length > 0 && <div><h4>Playbook used</h4><p>{d.playbook_used.join(", ")}</p></div>}
+                  </div>
+                </details>
+              </form>
+            </article>
+          );
+        })}
+      </section>
 
-      <div className="section-title"><h2>Recently reviewed</h2><span className="note">Last 15 decisions</span></div>
-      {recent.length === 0 ? <div className="empty boxed"><b>Nothing reviewed yet</b>Your decisions will show here.</div> : (
-        <div className="card table-scroll">
-          <table className="table">
-            <thead><tr><th>Buyer</th><th>Subject</th><th>Decision</th><th>By</th><th className="num">When</th></tr></thead>
-            <tbody>
-              {recent.map((r) => (
-                <tr key={r.id}>
-                  <td><div className="title">{r.contact}{r.company ? ` · ${r.company}` : ""}</div><div className="sub">For {r.client}</div></td>
-                  <td>{r.subject ?? "–"}{r.review_note && <div className="sub">{r.review_note}</div>}</td>
-                  <td><span className={`pill ${r.status === "approved" || r.status === "sent" ? "ok" : r.status === "rejected" ? "bad" : ""}`}>{sentence(r.status)}</span></td>
-                  <td className="small muted">{r.reviewed_by ?? "–"}</td>
-                  <td className="num small muted">{ago(r.reviewed_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <p className="xs faint" style={{ marginTop: 12 }}>The database itself refuses to approve or send anything to a buyer marked do-not-contact.</p>
+      <section className="section">
+        <div className="sh"><h2>Decided recently</h2><span className="aside">The last 15</span></div>
+        {recent.length === 0 ? <p className="empty">Your decisions will show here.</p> : (
+          <div className="scroll">
+            <table className="ledger">
+              <tbody>
+                {recent.map((r) => (
+                  <tr key={r.id}>
+                    <td className={`lead ${r.status === "rejected" ? "alarm" : ""}`}>{sentence(r.status)}</td>
+                    <td><div className="name" style={{ fontSize: 15.5 }}>{r.contact}{r.company ? `, ${r.company}` : ""}</div><div className="sub">For {r.client}</div></td>
+                    <td className="small">{r.subject ?? <span className="faint">No subject</span>}{r.review_note && <div className="muted">{r.review_note}</div>}</td>
+                    <td className="num small muted">{r.reviewed_by ?? ""}<div>{ago(r.reviewed_at)}</div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="after">The database itself refuses to approve or send anything to a buyer marked do-not-contact.</p>
+      </section>
     </>
   );
 }

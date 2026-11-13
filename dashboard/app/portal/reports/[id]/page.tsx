@@ -4,7 +4,6 @@ import { requirePortal } from "@/lib/auth";
 import { portalHref, portalQuery } from "@/lib/portal";
 import { dayLong } from "@/lib/format";
 import PortalHeader from "@/components/PortalHeader";
-import Icon from "@/components/Icon";
 
 type Report = { id: string; kind: string; period_start: Date; period_end: Date; summary: string | null; body: string | null;
   approved_at: Date | null };
@@ -28,24 +27,18 @@ export default async function PortalReport({ params, searchParams }: {
   return (
     <>
       <PortalHeader scope={scope} />
-      <main className="pmain">
-        <Link href={portalHref(scope, "/portal/reports")} className="btn quiet sm" style={{ marginBottom: 18 }}><Icon name="back" />All reports</Link>
-        <article className="letter rise">
-          <div className="head">
-            <span className="eyebrow">{r.kind === "weekly" ? "Weekly report" : "Monthly report"}</span>
-            <span className="xs muted">{scope.clientName}</span>
-          </div>
-          <h1>{r.summary ? <>{r.summary.replace(/\.$/, "")}<em>.</em></> : <>Your week, <em>in brief.</em></>}</h1>
+      <main className="frame">
+        <article className="letter">
           <div className="period">{dayLong(r.period_start)} to {dayLong(r.period_end)}</div>
-          <hr className="hairline" style={{ marginTop: 26 }} />
+          <h1>{r.summary ?? "Your week in brief."}</h1>
           <div className="content">
             {blocks.map((b, i) => b.length < 48 && !/[.!?]$/.test(b)
               ? <h3 key={i}>{b}</h3>
               : <p key={i}>{b.split("\n").map((line, j) => <span key={j}>{j > 0 && <br />}{line}</span>)}</p>)}
           </div>
           <div className="sign">
-            <span>With you every step,<br /><span className="wordmark">SBM <em>Partners</em></span></span>
-            <span>{r.approved_at ? `Shared ${dayLong(r.approved_at)}` : ""}</span>
+            <span>Your team at SBM Partners{r.approved_at ? `, ${dayLong(r.approved_at)}` : ""}</span>
+            <Link className="textbtn" href={portalHref(scope, "/portal/reports")}>All letters</Link>
           </div>
         </article>
       </main>

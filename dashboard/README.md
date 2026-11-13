@@ -5,28 +5,28 @@ One app, two views, one login page:
 - **Control room** (you and your team): what the agents are doing, live, and where you approve their work.
 - **Client portal** (each client): their own results, pipeline and approved weekly reports. Nothing else.
 
-The design follows the website: Aegean blue and Navy with Gold as the one accent, Instrument Sans headings with
-Instrument Serif italic accents, Geist for text. The fonts ship with the app, so nothing loads from Google.
+The design is one idea, used on every page: it reads like a private-bank statement. A sentence says where things
+stand, a ledger lists the names behind it, and a letter explains it. There are no cards, icons, badges or
+decorative charts. Colours and fonts are the website's (Navy and Aegean on Porcelain, Gold only for money won;
+Instrument Serif, Instrument Sans and Geist). The fonts ship with the app, so nothing loads from Google.
 
 | Page | What you do there |
 |---|---|
-| Overview | Drafts waiting, alerts (mark seen or resolve), each agent's spend against its budget, pause or resume an agent, change budgets, team work over the last 7 days |
-| Approvals | Read each draft next to the research and the Grader's notes, edit it, then approve or reject. Nothing is sent without approval |
-| Reports | Edit and approve each client's weekly report. Clients only see approved reports |
+| Today | What is waiting for you (drafts, letters, new playbook tactics, alerts you can mark seen or resolve), how each client is doing, and each agent's spend, budget and pause switch |
+| Drafts | Read and edit each draft, with the research and the Grader's notes underneath, then approve or reject. Nothing is sent without approval |
+| Letters | Edit and approve each client's weekly letter. Clients only see approved letters |
 | Playbook | Approve or retire playbook entries, one at a time or all at once |
-| Clients | Results for the last 30 days, missing fact sheets, and each client's daily draft limit |
+| Clients | Fact sheets, live campaigns, each client's daily draft limit and portal logins |
 
 ## The client portal
 
 | Page | What the client sees |
 |---|---|
-| Overview | A plain-language summary of the last 30 days, orders by week, replies, meetings, samples and quotes, where every buyer stands, the latest buyer activity, this week's report and updates you chose to share |
-| Pipeline | Every buyer we're talking to for them, their stage, value and last activity |
-| Reports | Every weekly report you approved, laid out like a letter |
+| Their page | One sentence on orders won and buyers deciding, the last 30 days in a line, notes you chose to share, every buyer in conversation with how far along they are and what happened last, and the opening of this week's letter |
+| Letters | Every weekly letter you approved |
 
 Clients never see drafts, unapproved reports, other clients, AI costs, buyer emails or phone numbers.
-You can see exactly what a client sees: **Preview the portal** in the sidebar, or **Portal** next to a client on
-the Clients page. A navy strip at the top reminds you it's a preview and lets you switch clients.
+You can see exactly what a client sees: **Their page** next to a client on Today or the Clients page. A navy strip at the top reminds you it's a preview and lets you switch clients.
 
 **How the privacy works.** A client's pages run inside the database as that client's login, so Supabase's
 row-level security decides what comes back, and every query also filters on their client. The pipeline and

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
 import { sql } from "@/lib/db";
-import Icon from "@/components/Icon";
 import NavLink from "@/components/NavLink";
 
 export const metadata: Metadata = { title: "SBM Partners · Control room" };
@@ -12,28 +12,26 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
     select (select count(*)::int from outreach_drafts where status = 'pending_review') as drafts,
            (select count(*)::int from reports where status = 'draft') as reports,
            (select count(*)::int from playbook_entries where status = 'draft') as playbook`;
-  const badge = (n: number) => (n > 0 ? <span className="badge">{n}</span> : null);
+  const n = (v: number) => (v > 0 ? <sup>{v}</sup> : null);
   return (
-    <div className="shell">
-      <aside className="side">
-        <span className="wordmark">SBM <em>Partners</em></span>
-        <div className="room">Control room</div>
-        <nav aria-label="Control room">
-          <NavLink href="/" className="navlink"><Icon name="overview" />Overview</NavLink>
-          <NavLink href="/approvals" className="navlink"><Icon name="approvals" />Approvals{badge(c.drafts)}</NavLink>
-          <NavLink href="/reports" className="navlink"><Icon name="reports" />Client reports{badge(c.reports)}</NavLink>
-          <NavLink href="/playbook" className="navlink"><Icon name="playbook" />Playbook{badge(c.playbook)}</NavLink>
-          <NavLink href="/clients" className="navlink"><Icon name="clients" />Clients</NavLink>
-          <div className="group">Client view</div>
-          <NavLink href="/portal" className="navlink"><Icon name="portal" />Preview the portal</NavLink>
-        </nav>
-        <form action="/auth/signout" method="post" className="foot">
-          <span className="avatar">{staff.name.charAt(0).toUpperCase()}</span>
-          <span className="who"><b>{staff.name}</b><span>{staff.role}</span></span>
-          <button title="Sign out" aria-label="Sign out"><Icon name="signout" /></button>
+    <div className="frame">
+      <header className="mast">
+        <div className="mast-left">
+          <Link href="/" className="wordmark">SBM<i>Partners</i></Link>
+          <nav aria-label="Control room">
+            <NavLink href="/">Today</NavLink>
+            <NavLink href="/approvals">Drafts{n(c.drafts)}</NavLink>
+            <NavLink href="/reports">Letters{n(c.reports)}</NavLink>
+            <NavLink href="/playbook">Playbook{n(c.playbook)}</NavLink>
+            <NavLink href="/clients">Clients</NavLink>
+          </nav>
+        </div>
+        <form action="/auth/signout" method="post" className="who">
+          <span className="muted">{staff.name}</span>
+          <button className="signout">Sign out</button>
         </form>
-      </aside>
-      <main className="page">{children}</main>
+      </header>
+      <main>{children}</main>
     </div>
   );
 }
