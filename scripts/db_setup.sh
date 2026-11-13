@@ -34,6 +34,7 @@ installed() {
     0001_core.sql)             check="select to_regclass('public.clients') is not null" ;;
     0002_supabase_privacy.sql) check="select exists (select 1 from pg_policies where policyname = 'portal_read_client')" ;;
     0003_agent_team.sql)       check="select to_regclass('public.tasks') is not null" ;;
+    0004_client_portal.sql)    check="select to_regclass('public.v_portal_pipeline') is not null" ;;
     *) echo "No install check for $1; add one to scripts/db_setup.sh." >&2; exit 1 ;;
   esac
   [[ "$(psql "$DATABASE_URL" -X -tAc "$check")" == "t" ]]
@@ -47,3 +48,4 @@ if ! $verify_only; then
 fi
 run db/tests/verify_privacy.sql
 run db/tests/verify_team.sql
+run db/tests/verify_portal.sql
