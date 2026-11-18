@@ -6,8 +6,9 @@
   Grader               scores every draft from 0 to 100 against agents/rubric.json
   Reporter             writes each client's weekly report from the numbers in the database
 
-Nothing is ever sent from here. Drafts wait in outreach_drafts (view: v_approval_queue) until a
-person approves them, and reports wait as 'draft' until a person approves them.
+Drafts wait in outreach_drafts (view: v_approval_queue) until a person approves them, and reports wait as
+'draft' until a person approves them. When MAIL_ADDRESS is set, the Mailer (agents/mailer.py) also runs each
+round: it sends approved emails slowly within the mailbox's daily cap, and reads and sorts replies.
 
 Run:
   python -m agents.team run            keep working: a Supervisor round every 5 minutes, then the tasks
@@ -34,7 +35,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from . import supervisor, teamdb as db
+from . import mailer, supervisor, teamdb as db
 from .common import FALLBACK_BETA, Usage, client
 from .practice import GRADER_SYSTEM, WRITER_SYSTEM, Grade, WriterTurn, playbook_text, score
 from .researcher import _collect_urls, _norm
@@ -157,21 +158,41 @@ def active_playbook(conn) -> list[dict]:
                              "from playbook_entries where status = 'active' order by created_at, title")
 
 
+FOOTER_NOTE = ("\n\nThe sender's name, postal address and an unsubscribe link are added automatically under every "
+               "email, so do not write your own opt-out line or signature block; end with your first name.")
+
+LINKEDIN_ASK = ("Write a LinkedIn connection note to this buyer. At most 280 characters. No pitch, no product, no link, "
+                "no ask for a meeting: say who you are in a few words and mention one specific, true thing from the "
+                "research that made you want to connect. Leave subject empty.")
+
+
 def draft_outreach(conn, c, task: dict, usages: dict) -> dict:
     w_usage = usages.setdefault("writer", Usage())
     g_usage = usages.setdefault("grader", Usage())
-    brief = db.one(conn, "select brief from clients where id = %s", (task["client_id"],))["brief"]
-    if not brief:
-        raise RuntimeError("The client has no brand fact sheet (clients.brief).")
+    cl = db.one(conn, "select brief, brief_approved_at, sender_name, sender_company from clients where id = %s",
+                (task["client_id"],))
+    brief = cl["brief"]
+    if not brief or cl["brief_approved_at"] is None:
+        raise RuntimeError("The client has no approved fact sheet (approve it on the Clients page).")
+    if cl["sender_name"]:   # who signs the emails
+        brief = {**brief, "sender_name": cl["sender_name"],
+                 **({"sender_title": cl["sender_company"]} if cl["sender_company"] else {})}
     playbook = active_playbook(conn)
     if not playbook:
         raise RuntimeError("No approved playbook entries (status 'active'); the Writer only uses approved entries.")
+    step = int(task["input"].get("step") or 1)
     research_id = task["input"].get("research_task_id") or task["parent_id"]
-    research = (db.one(conn, "select output from tasks where id = %s", (research_id,)) or {}).get("output") or {}
+    research = ((db.one(conn, "select output from tasks where id = %s", (research_id,)) or {}).get("output") or {}
+                if research_id else {})
     p = contact_row(conn, task["contact_id"])
     camp = db.one(conn, "select channels::text[] as channels from campaigns where id = %s", (task["campaign_id"],))
     channels = (camp or {}).get("channels") or ["email"]
-    channel = "email" if "email" in channels else channels[0]
+    channel = "email" if ("email" in channels or step > 1) else channels[0]
+    history = db.all_rows(conn, """select step, subject, body, sent_at from outreach_drafts
+                                   where contact_id = %s and campaign_id = %s and channel = 'email' and status = 'sent'
+                                   order by step""", (task["contact_id"], task["campaign_id"])) if step > 1 else []
+    if step > 1 and not history:
+        raise RuntimeError("A follow-up was requested but no earlier email to this buyer was sent.")
 
     brief_txt = json.dumps({k: v for k, v in brief.items() if not k.startswith("_")}, indent=1)
     w_sys = [{"type": "text", "cache_control": {"type": "ephemeral"},
@@ -183,17 +204,28 @@ def draft_outreach(conn, c, task: dict, usages: dict) -> dict:
     about = (f"Buyer: {who(p)}\nWhat research found: {research.get('summary', '(no research)')}\n{facts}\n"
              f"Best angle: {research.get('angle', '')}\nCautions: {research.get('cautions', '')}")
     min_score = db.agent(conn, "writer")["min_score"]
+    if history:
+        convo = "\n\n".join(f"[You, {h['sent_at']:%d %b}] " + (f"Subject: {h['subject']}\n" if h["subject"] else "") + h["body"]
+                             for h in history) + "\n\n(The buyer has not replied.)"
+        ask = (f"Write follow-up {step - 1} to this buyer, as a reply in the same email thread. It must add something "
+               "new and useful (a fact from the brief, a sample, an answer); never 'just checking in'. Shorter than the "
+               "first email. Leave subject empty: it goes out as a reply.")
+        stage = f"This is follow-up {step - 1}; the buyer has not replied to the earlier emails shown above"
+    else:
+        convo, ask = "(none yet)", f"Write your first {channel} message to this buyer."
+        stage = "This is a first message; the buyer has not replied yet"
+    footer = FOOTER_NOTE if channel == "email" else ""
 
     def write(extra: str = "") -> WriterTurn:
         return parse(c, w_usage, model("writer"), w_sys,
-                     f"{about}\n\nConversation so far:\n(none yet)\n\nWrite your first {channel} message to this buyer.{extra}",
-                     WriterTurn, "medium")
+                     f"{about}\n\nConversation so far:\n{convo}\n\n{ask}{footer}{extra}", WriterTurn, "medium")
 
     def grade(w: WriterTurn) -> tuple[Grade, float]:
         subj = f"[Subject: {w.subject}]\n" if w.subject else ""
         g = parse(c, g_usage, model("grader"), g_sys,
-                  f"{about}\nChannel: {channel}. This is a first message; the buyer has not replied yet "
-                  f"(score 'handling' as null).\n\nWRITER:\n{subj}{w.message}", Grade, "medium")
+                  f"{about}\nChannel: {channel}. {stage} (score 'handling' as null). The sender's address and "
+                  f"unsubscribe link are added automatically, so do not mark it down for missing them."
+                  f"\n\nEarlier messages:\n{convo}\n\nWRITER:\n{subj}{w.message}", Grade, "medium")
         return g, score(g, RUBRIC)
 
     best = write()
@@ -209,14 +241,27 @@ def draft_outreach(conn, c, task: dict, usages: dict) -> dict:
 
     used = [playbook[i - 1]["title"] for i in best.playbook_used if 0 < i <= len(playbook)]
     writer_id = db.agent(conn, "writer")["id"]
-    row = db.one(conn, """
-        insert into outreach_drafts (client_id, campaign_id, contact_id, company_id, task_id, writer_agent_id, channel,
+    insert = """
+        insert into outreach_drafts (client_id, campaign_id, contact_id, company_id, task_id, writer_agent_id, channel, step,
                                      subject, body, playbook_used, research, score, grade_feedback, rewrites)
-        values (%s, %s, %s, %s, %s, %s, %s::channel, %s, %s, %s, %s, %s, %s, %s) returning id""",
-                 (task["client_id"], task["campaign_id"], task["contact_id"], task["company_id"], task["id"], writer_id,
-                  channel, best.subject, best.message, db.jsonb(used), db.jsonb(research), best_s,
-                  f"{best_g.feedback}\nTop fix: {best_g.top_fix}", rewrites))
-    return {"draft_id": str(row["id"]), "score": best_s, "rewrites": rewrites, "channel": channel}
+        values (%s, %s, %s, %s, %s, %s, %s::channel, %s, %s, %s, %s, %s, %s, %s, %s) returning id"""
+    row = db.one(conn, insert, (task["client_id"], task["campaign_id"], task["contact_id"], task["company_id"], task["id"],
+                                writer_id, channel, step, None if step > 1 else best.subject, best.message, db.jsonb(used),
+                                db.jsonb(research), best_s, f"{best_g.feedback}\nTop fix: {best_g.top_fix}", rewrites))
+    out = {"draft_id": str(row["id"]), "score": best_s, "rewrites": rewrites, "channel": channel, "step": step}
+
+    # A short LinkedIn note for you to send by hand, when the campaign uses LinkedIn and we know their profile.
+    if step == 1 and channel != "linkedin" and "linkedin" in channels and p.get("linkedin_url"):
+        note = parse(c, w_usage, model("writer"), w_sys, f"{about}\n\n{LINKEDIN_ASK}", WriterTurn, "low")
+        if len(note.message) > 300:
+            note = parse(c, w_usage, model("writer"), w_sys,
+                         f"{about}\n\n{LINKEDIN_ASK}\nYour last note was {len(note.message)} characters; cut it to 280.",
+                         WriterTurn, "low")
+        li = db.one(conn, insert, (task["client_id"], task["campaign_id"], task["contact_id"], task["company_id"], task["id"],
+                                   writer_id, "linkedin", 1, None, note.message.strip(), db.jsonb([]), db.jsonb(research),
+                                   None, f"Not graded. {len(note.message.strip())} characters (LinkedIn allows 300).", 0))
+        out["linkedin_draft_id"] = str(li["id"])
+    return out
 
 
 # ─────────────────────────── Reporter ───────────────────────────
@@ -356,9 +401,16 @@ def main(argv=None) -> None:
     signal.signal(signal.SIGTERM, lambda *_: stop.set())   # hosting platforms send this before a restart
     log = lambda m: print(f"{dt.datetime.now():%H:%M:%S} {m}", flush=True)
     log("Team started.")
+    mail = mailer.settings()
+    if mail["address"]:
+        log(f"Mailer on for {mail['address']}{' (dry run: emails are written to out/mail, not sent)' if mail['dry_run'] else ''}.")
     while not stop.is_set():
         try:
             work_round(conn, c, args.workers, stop=stop, log=log)
+            if mail["address"]:
+                while mailer.send_due(conn, mail, log=log):
+                    pass
+                mailer.read_replies(conn, mail, c, log=log)
         except Exception as exc:  # a lost connection should not stop the team for good
             log(f"Round failed: {exc}; reconnecting.")
             try:

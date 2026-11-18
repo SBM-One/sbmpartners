@@ -14,6 +14,16 @@ insert into contacts (id, company_id, first_name, email) values
 update contacts set do_not_contact = true where id = '88888888-0000-0000-0000-000000000002';
 insert into campaigns (id, client_id, name, status) values
   ('99999999-0000-0000-0000-00000000000a', '55555555-0000-0000-0000-00000000000a', 'Team test campaign', 'live');
+-- With the safety gate (0005) installed, make the test buyer sendable so the approval rules can be checked.
+do $$ begin
+  if to_regclass('public.mailboxes') is not null then
+    execute $q$update clients set sender_name = 'Test', postal_address = '1 Test St', brief = '{"brand":"T"}',
+                brief_approved_at = now() where id = '55555555-0000-0000-0000-00000000000a'$q$;
+    execute $q$update contacts set email_source = 'test', email_basis = 'legitimate_interest', country = 'US'
+                where company_id = '77777777-0000-0000-0000-000000000001'$q$;
+    execute $q$update email_country_rules set confirmed_at = now(), confirmed_by = 'test' where country = 'US'$q$;
+  end if;
+end $$;
 
 -- 1) the task queue
 do $$
@@ -44,8 +54,8 @@ end $$;
 do $$
 declare d uuid;
 begin
-  insert into outreach_drafts (client_id, campaign_id, contact_id, body)
-  values ('55555555-0000-0000-0000-00000000000a', '99999999-0000-0000-0000-00000000000a', '88888888-0000-0000-0000-000000000001', 'Hello')
+  insert into outreach_drafts (client_id, campaign_id, contact_id, subject, body)
+  values ('55555555-0000-0000-0000-00000000000a', '99999999-0000-0000-0000-00000000000a', '88888888-0000-0000-0000-000000000001', 'Hi', 'Hello')
   returning id into d;
   begin
     update outreach_drafts set status = 'sent' where id = d;

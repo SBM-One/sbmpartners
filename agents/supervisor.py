@@ -4,7 +4,8 @@ Each round (a "tick") it:
   1. puts stuck tasks back in the queue,
   2. pauses any agent that reached its monthly budget (and un-pauses it when a new month starts),
   3. hands out work for live campaigns: research each new buyer, then a draft for each researched buyer,
-     paced by each client's daily draft limit,
+     paced by each client's daily draft limit, then a follow-up draft when a sent email got no answer
+     after the campaign's followup_days (up to its max_steps),
   4. asks the Reporter for last week's report for each active client,
   5. raises alerts for you: failed tasks, a missing brand fact sheet, drafts waiting over a day for
      approval, and an agent whose scores are slipping.
@@ -25,6 +26,7 @@ def tick(conn, today: dt.date | None = None) -> dict:
     done["stuck_tasks_requeued"] = db.one(conn, "select release_stale_tasks(30) as n")["n"]
     done.update(_budgets(conn))
     done.update(_campaign_work(conn))
+    done["follow_ups_added"] = _follow_ups(conn)
     done["reports_requested"] = _weekly_reports(conn, today)
     done["alerts"] = _watch(conn, today)
     return done
@@ -57,15 +59,18 @@ def _budgets(conn) -> dict:
 def _campaign_work(conn) -> dict:
     researched = drafted = 0
     for c in db.all_rows(conn, """
-            select cl.id as client_id, cl.name, cl.brief, cl.daily_draft_limit,
-                   array_agg(ca.id) as campaign_ids
+            select cl.id as client_id, cl.name, cl.brief, cl.daily_draft_limit, cl.brief_approved_at,
+                   cl.brief_draft is not null as has_brief_draft, array_agg(ca.id) as campaign_ids
             from clients cl join campaigns ca on ca.client_id = cl.id
             where ca.status = 'live' and cl.status = 'active'
             group by cl.id"""):
-        if not c["brief"]:
-            db.alert(conn, "client_brief_missing",
-                     f"{c['name']} has a live campaign but no brand fact sheet (clients.brief), so no drafts are written.",
-                     severity="urgent", client_id=c["client_id"], dedupe_key=f"brief:{c['client_id']}")
+        if not c["brief"] or c["brief_approved_at"] is None:
+            msg = (f"{c['name']}'s fact sheet is drafted and waiting for your approval (Clients page). No drafts are "
+                   "written until you approve it." if c["has_brief_draft"] else
+                   f"{c['name']} has a live campaign but no approved fact sheet, so no drafts are written. "
+                   "Draft one from their catalog: python -m agents.onboard --client \"" + c["name"] + "\" --file catalog.pdf")
+            db.alert(conn, "client_brief_missing", msg, severity="urgent", client_id=c["client_id"],
+                     dedupe_key=f"brief:{c['client_id']}")
             continue
 
         # Step 2: every researched buyer gets a draft (these were already counted against the daily limit).
@@ -104,6 +109,36 @@ def _campaign_work(conn) -> dict:
     return {"research_tasks_added": researched, "draft_tasks_added": drafted}
 
 
+# ─────────────────────────── follow-ups ───────────────────────────
+def _follow_ups(conn) -> int:
+    """A sent email with no reply after the campaign's followup_days gets one follow-up draft, up to max_steps.
+    The follow-up still waits for your approval, and the safety gate checks again that nobody replied."""
+    n = 0
+    for f in db.all_rows(conn, """
+            select d.client_id, d.campaign_id, d.contact_id, d.company_id, d.step, d.id as previous_draft_id,
+                   (select t.id from tasks t where t.kind = 'research_prospect' and t.campaign_id = d.campaign_id
+                     and t.contact_id = d.contact_id and t.status = 'done' order by t.finished_at desc limit 1) as research_id
+            from outreach_drafts d
+            join campaigns ca on ca.id = d.campaign_id
+            join clients cl on cl.id = d.client_id
+            join contacts c on c.id = d.contact_id
+            where d.channel = 'email' and d.status = 'sent' and ca.status = 'live' and cl.status = 'active'
+              and d.step < ca.max_steps and d.sent_at < now() - make_interval(days => ca.followup_days)
+              and not c.do_not_contact
+              and not exists (select 1 from interactions i where i.contact_id = d.contact_id and i.client_id = d.client_id
+                              and i.direction = 'inbound' and i.kind in ('reply','unsubscribe','bounce'))
+              and not exists (select 1 from outreach_drafts n where n.contact_id = d.contact_id and n.campaign_id = d.campaign_id
+                              and n.channel = 'email' and n.step > d.step)
+              and not exists (select 1 from tasks t where t.kind = 'draft_outreach' and t.campaign_id = d.campaign_id
+                              and t.contact_id = d.contact_id and t.status in ('queued','running'))"""):
+        if db.enqueue(conn, "draft_outreach", client_id=f["client_id"], campaign_id=f["campaign_id"],
+                      contact_id=f["contact_id"], company_id=f["company_id"], priority=40,
+                      input={"step": f["step"] + 1, "previous_draft_id": str(f["previous_draft_id"]),
+                             "research_task_id": str(f["research_id"]) if f["research_id"] else None}):
+            n += 1
+    return n
+
+
 # ─────────────────────────── weekly reports ───────────────────────────
 def _weekly_reports(conn, today: dt.date) -> int:
     start = today - dt.timedelta(days=today.weekday() + 7)    # last week's Monday
@@ -138,6 +173,14 @@ def _watch(conn, today: dt.date) -> int:
         raised += db.alert(conn, "approval_waiting",
                            f"{waiting} draft(s) have waited more than a day for your approval (Approvals page).",
                            severity="info", dedupe_key=f"queue:{today}")
+
+    stuck = db.all_rows(conn, """select d.id, c.email from outreach_drafts d join contacts c on c.id = d.contact_id
+                               where d.status = 'approved' and d.send_claimed_at < now() - interval '30 minutes'""")
+    for d in stuck:
+        raised += db.alert(conn, "send_unconfirmed",
+                           f"An email to {d['email']} was handed to the mailbox but never confirmed as sent. Check the "
+                           "mailbox's Sent folder before doing anything: it is not retried, so nobody gets it twice.",
+                           severity="urgent", refs={"draft_id": str(d["id"])}, dedupe_key=f"stuck:{d['id']}")
 
     for s in db.all_rows(conn, """
             select a.name, a.min_score, count(*) as n, round(avg(d.score)::numeric, 1) as avg
