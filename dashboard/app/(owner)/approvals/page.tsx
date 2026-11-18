@@ -1,13 +1,14 @@
 import { requireStaff } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import { ago, sentence } from "@/lib/format";
-import { reviewDraft } from "../../actions";
+import { reviewDraft, stopContact, updateContactSending } from "../../actions";
 import Submit from "@/components/Submit";
 
 type Draft = {
   id: string; created_at: Date; client: string; contact: string; contact_title: string | null; email: string | null;
   company: string | null; buyer_type: string | null; website: string | null; channel: string; step: number;
   subject: string | null; body: string; score: number | null; grade_feedback: string | null; rewrites: number;
+  contact_id: string; country: string | null; email_basis: string; email_source: string | null; blockers: string[];
   playbook_used: string[]; research: { summary?: string; angle?: string; cautions?: string; fit?: number;
     facts?: { fact: string; source_url: string }[] };
 };
@@ -22,7 +23,8 @@ export default async function Approvals() {
     sql<Draft[]>`
       select d.id, d.created_at, cl.name as client, trim(coalesce(c.first_name, '') || ' ' || coalesce(c.last_name, '')) as contact,
              c.title as contact_title, c.email, co.name as company, co.type::text as buyer_type, co.website,
-             d.channel::text, d.step, d.subject, d.body, d.score, d.grade_feedback, d.rewrites, d.playbook_used, d.research
+             d.channel::text, d.step, d.subject, d.body, d.score, d.grade_feedback, d.rewrites, d.playbook_used, d.research,
+             d.contact_id, coalesce(c.country, co.country) as country, c.email_basis, c.email_source, send_blockers(d.id) as blockers
       from outreach_drafts d
       join clients cl on cl.id = d.client_id
       join contacts c on c.id = d.contact_id
@@ -44,7 +46,8 @@ export default async function Approvals() {
         {drafts.length === 0 ? "No drafts are waiting." : `${WORDS[drafts.length] ?? drafts.length} draft${drafts.length === 1 ? " is" : "s are"} waiting.`}
         {" "}Nothing reaches a buyer until you approve it.
       </h1>
-      <p className="standfirst">Edit anything. What you approve is exactly what goes out. The research and the Grader&apos;s notes sit under each draft.</p>
+      <p className="standfirst">Edit anything. What you approve is exactly what goes out: emails leave the mailbox slowly within its daily
+        limit, and LinkedIn notes go to your LinkedIn list to send by hand. The research and the Grader&apos;s notes sit under each draft.</p>
 
       <section className="section tight">
         <div className="sh"><h2>Drafts<span className="count">{drafts.length}</span></h2><span className="aside">Oldest first</span></div>
@@ -73,13 +76,44 @@ export default async function Approvals() {
                 </div>
               </div>
 
+              <div className="words">
+              {d.blockers.length > 0 && (
+                <div className="notice alarm">
+                  <p>Can&apos;t be approved yet:</p>
+                  <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>{d.blockers.map((b, j) => <li key={j}>{b}</li>)}</ul>
+                  {d.blockers.some((b) => /email rule for/i.test(b)) && (
+                    <p style={{ marginTop: 8 }}><a className="textbtn" href="/sending">Check and confirm country rules on the Sending page</a></p>)}
+                  {d.blockers.some((b) => /fact sheet|sender name/i.test(b)) && (
+                    <p style={{ marginTop: 8 }}><a className="textbtn" href="/clients">Fix it on the Clients page</a></p>)}
+                  {d.channel === "email" && d.blockers.some((b) => /country|consent|legal basis|came from|no email rule/i.test(b)) && (
+                    <form action={updateContactSending} className="inline" style={{ marginTop: 12, flexWrap: "wrap", color: "var(--ink)" }}>
+                      <input type="hidden" name="contact_id" value={d.contact_id} />
+                      <label className="field"><span>Country (2 letters)</span>
+                        <input name="country" defaultValue={d.country ?? ""} maxLength={2} style={{ width: 70 }} /></label>
+                      <label className="field"><span>Why we may email them</span>
+                        <select name="email_basis" defaultValue={d.email_basis}>
+                          <option value="unknown">Not recorded</option>
+                          <option value="legitimate_interest">Business address, relevant to their job</option>
+                          <option value="consent">They agreed to hear from us</option>
+                          <option value="existing_customer">Existing customer</option>
+                        </select></label>
+                      <label className="field"><span>Where the address came from</span>
+                        <input name="email_source" defaultValue={d.email_source ?? ""} placeholder="Their website, trade show card…" /></label>
+                      <Submit className="textbtn">Save</Submit>
+                    </form>
+                  )}
+                </div>
+              )}
               <form action={reviewDraft} className="words">
                 <input type="hidden" name="id" value={d.id} />
                 {d.channel === "email" && <label className="field subject"><span>Subject</span><input name="subject" defaultValue={d.subject ?? ""} /></label>}
-                <label className="field body"><span>Message</span><textarea name="body" defaultValue={d.body} /></label>
+                <label className="field body"><span>{d.channel === "linkedin" ? `LinkedIn note (${d.body.length} of 300 characters)` :
+                  d.step > 1 ? "Follow-up, sent as a reply in the same email thread" : "Message"}</span><textarea name="body" defaultValue={d.body} /></label>
+                {d.channel === "email" && <p className="small muted">The sender&apos;s name, postal address and an unsubscribe link are added under the email.</p>}
                 <label className="field"><span>Note for the team, if any</span><input name="note" placeholder="Why you approved, changed or rejected it" /></label>
                 <div className="acts">
-                  <Submit name="decision" value="approved" className="solid">Approve and queue</Submit>
+                  <Submit name="decision" value="approved" className="solid" disabled={d.blockers.length > 0}>
+                    {d.channel === "email" ? "Approve and send" : d.channel === "linkedin" ? "Approve for LinkedIn" : "Approve"}</Submit>
                   <Submit name="decision" value="rejected" className="textbtn alarm">Reject</Submit>
                   {d.website && <a className="textbtn quiet" href={d.website} target="_blank" rel="noreferrer noopener">Their website</a>}
                 </div>
@@ -99,6 +133,11 @@ export default async function Approvals() {
                   </div>
                 </details>
               </form>
+              <form action={stopContact} style={{ marginTop: 14 }}>
+                <input type="hidden" name="contact_id" value={d.contact_id} />
+                <Submit className="textbtn quiet" confirm={`Never contact ${d.contact || "this buyer"} again, on any channel?`}>Never contact this buyer</Submit>
+              </form>
+              </div>
             </article>
           );
         })}
@@ -122,7 +161,8 @@ export default async function Approvals() {
             </table>
           </div>
         )}
-        <p className="after">The database itself refuses to approve or send anything to a buyer marked do-not-contact.</p>
+        <p className="after">The database itself refuses to approve or send anything the safety gate blocks: do-not-contact buyers,
+          countries whose email rule you have not confirmed, missing consent where a country needs it, and emails without a sender address.</p>
       </section>
     </>
   );
