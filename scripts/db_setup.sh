@@ -36,6 +36,7 @@ installed() {
     0003_agent_team.sql)       check="select to_regclass('public.tasks') is not null" ;;
     0004_client_portal.sql)    check="select to_regclass('public.v_portal_pipeline') is not null" ;;
     0005_first_sends.sql)      check="select to_regclass('public.mailboxes') is not null" ;;
+    0006_qualify_and_handoff.sql) check="select to_regclass('public.meeting_handoffs') is not null" ;;
     *) echo "No install check for $1; add one to scripts/db_setup.sh." >&2; exit 1 ;;
   esac
   [[ "$(psql "$DATABASE_URL" -X -tAc "$check")" == "t" ]]
@@ -52,4 +53,7 @@ run db/tests/verify_team.sql
 run db/tests/verify_portal.sql
 if [[ "$(psql "$DATABASE_URL" -X -tAc "select to_regclass('public.mailboxes') is not null")" == "t" ]]; then
   run db/tests/verify_sends.sql
+fi
+if [[ "$(psql "$DATABASE_URL" -X -tAc "select to_regclass('public.meeting_handoffs') is not null")" == "t" ]]; then
+  run db/tests/verify_pipeline.sql
 fi

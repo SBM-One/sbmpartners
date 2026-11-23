@@ -1,9 +1,14 @@
 """The agent team: the Supervisor hands out work, and each agent picks up its own tasks from the database.
 
   Prospect researcher  looks up each real buyer on the web (with sources) before anyone writes to them
-  Writer               drafts the first message using the client's fact sheet, the approved playbook
-                       and the research; the Grader scores it and the Writer gets one rewrite if it is weak
+  Strategist           scores the buyer's fit (0-100), decides pursue / nurture / disqualify, and plans the
+                       pitch and the channel (agents/strategy.py). Only "pursue" buyers get a first message
+  Writer               drafts the first message using the client's fact sheet, the approved playbook,
+                       the research and the strategy; the Grader scores it and the Writer gets one rewrite
+                       if it is weak. Also drafts follow-ups, answers to buyers who reply, and one check-in
+                       after a "not now"
   Grader               scores every draft from 0 to 100 against agents/rubric.json
+  Meeting briefer      turns an interested buyer into a meeting brief for you (agents/strategy.py)
   Reporter             writes each client's weekly report from the numbers in the database
 
 Drafts wait in outreach_drafts (view: v_approval_queue) until a person approves them, and reports wait as
@@ -35,9 +40,9 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from . import mailer, supervisor, teamdb as db
+from . import mailer, strategy, supervisor, teamdb as db
 from .common import FALLBACK_BETA, Usage, client
-from .practice import GRADER_SYSTEM, WRITER_SYSTEM, Grade, WriterTurn, playbook_text, score
+from .practice import GRADER_SYSTEM, WRITER_SYSTEM, Grade, WriterTurn, playbook_text, score  # noqa: F401 (used by strategy.py)
 from .researcher import _collect_urls, _norm
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -166,11 +171,9 @@ LINKEDIN_ASK = ("Write a LinkedIn connection note to this buyer. At most 280 cha
                 "research that made you want to connect. Leave subject empty.")
 
 
-def draft_outreach(conn, c, task: dict, usages: dict) -> dict:
-    w_usage = usages.setdefault("writer", Usage())
-    g_usage = usages.setdefault("grader", Usage())
-    cl = db.one(conn, "select brief, brief_approved_at, sender_name, sender_company from clients where id = %s",
-                (task["client_id"],))
+def writer_setup(conn, client_id) -> tuple[list, list, dict]:
+    """The Writer's and Grader's instructions for one client: (writer system, grader system, fact sheet)."""
+    cl = db.one(conn, "select brief, brief_approved_at, sender_name, sender_company from clients where id = %s", (client_id,))
     brief = cl["brief"]
     if not brief or cl["brief_approved_at"] is None:
         raise RuntimeError("The client has no approved fact sheet (approve it on the Clients page).")
@@ -180,29 +183,44 @@ def draft_outreach(conn, c, task: dict, usages: dict) -> dict:
     playbook = active_playbook(conn)
     if not playbook:
         raise RuntimeError("No approved playbook entries (status 'active'); the Writer only uses approved entries.")
-    step = int(task["input"].get("step") or 1)
-    research_id = task["input"].get("research_task_id") or task["parent_id"]
-    research = ((db.one(conn, "select output from tasks where id = %s", (research_id,)) or {}).get("output") or {}
-                if research_id else {})
-    p = contact_row(conn, task["contact_id"])
-    camp = db.one(conn, "select channels::text[] as channels from campaigns where id = %s", (task["campaign_id"],))
-    channels = (camp or {}).get("channels") or ["email"]
-    channel = "email" if ("email" in channels or step > 1) else channels[0]
-    history = db.all_rows(conn, """select step, subject, body, sent_at from outreach_drafts
-                                   where contact_id = %s and campaign_id = %s and channel = 'email' and status = 'sent'
-                                   order by step""", (task["contact_id"], task["campaign_id"])) if step > 1 else []
-    if step > 1 and not history:
-        raise RuntimeError("A follow-up was requested but no earlier email to this buyer was sent.")
-
     brief_txt = json.dumps({k: v for k, v in brief.items() if not k.startswith("_")}, indent=1)
     w_sys = [{"type": "text", "cache_control": {"type": "ephemeral"},
               "text": WRITER_SYSTEM.format(brief=brief_txt, playbook=playbook_text(playbook))}]
     g_sys = [{"type": "text", "cache_control": {"type": "ephemeral"},
               "text": GRADER_SYSTEM.format(rubric=json.dumps(RUBRIC, indent=1), brief=brief_txt,
                                            titles="\n".join(f"[{i}] {e['title']}" for i, e in enumerate(playbook, 1)))}]
+    return w_sys, g_sys, brief
+
+
+def draft_outreach(conn, c, task: dict, usages: dict) -> dict:
+    w_usage = usages.setdefault("writer", Usage())
+    g_usage = usages.setdefault("grader", Usage())
+    w_sys, g_sys, brief = writer_setup(conn, task["client_id"])
+    playbook = active_playbook(conn)
+    step = int(task["input"].get("step") or 1)
+    strat = strategy.strategy_for(conn, task["campaign_id"], task["contact_id"])
+    if step == 1 and strat and strat["decision"] != "pursue":
+        raise RuntimeError(f"This buyer was marked {strat['decision']!r}, so no first message (change it on the Buyers page).")
+    research_id = task["input"].get("research_task_id") or task["parent_id"]
+    research = ((db.one(conn, "select output from tasks where id = %s", (research_id,)) or {}).get("output") or {}
+                if research_id else {})
+    p = contact_row(conn, task["contact_id"])
+    camp = db.one(conn, "select channels::text[] as channels from campaigns where id = %s", (task["campaign_id"],))
+    channels = (camp or {}).get("channels") or ["email"]
+    if strat and step == 1:   # the Strategist picked the channel
+        channel = "linkedin" if strat["channel_plan"] == "linkedin" else "email"
+    else:
+        channel = "email" if ("email" in channels or step > 1) else channels[0]
+    history = db.all_rows(conn, """select step, subject, body, sent_at from outreach_drafts
+                                   where contact_id = %s and campaign_id = %s and channel = 'email' and status = 'sent'
+                                   order by step""", (task["contact_id"], task["campaign_id"])) if step > 1 else []
+    if step > 1 and not history:
+        raise RuntimeError("A follow-up was requested but no earlier email to this buyer was sent.")
+
     facts = "\n".join(f"- {f['fact']} ({f['source_url']})" for f in research.get("facts", [])) or "- (no verified facts)"
     about = (f"Buyer: {who(p)}\nWhat research found: {research.get('summary', '(no research)')}\n{facts}\n"
-             f"Best angle: {research.get('angle', '')}\nCautions: {research.get('cautions', '')}")
+             f"Best angle: {research.get('angle', '')}\nCautions: {research.get('cautions', '')}"
+             + strategy.strategy_text(strat))
     min_score = db.agent(conn, "writer")["min_score"]
     if history:
         convo = "\n\n".join(f"[You, {h['sent_at']:%d %b}] " + (f"Subject: {h['subject']}\n" if h["subject"] else "") + h["body"]
@@ -212,7 +230,8 @@ def draft_outreach(conn, c, task: dict, usages: dict) -> dict:
                "first email. Leave subject empty: it goes out as a reply.")
         stage = f"This is follow-up {step - 1}; the buyer has not replied to the earlier emails shown above"
     else:
-        convo, ask = "(none yet)", f"Write your first {channel} message to this buyer."
+        convo = "(none yet)"
+        ask = LINKEDIN_ASK if channel == "linkedin" else f"Write your first {channel} message to this buyer."
         stage = "This is a first message; the buyer has not replied yet"
     footer = FOOTER_NOTE if channel == "email" else ""
 
@@ -243,15 +262,19 @@ def draft_outreach(conn, c, task: dict, usages: dict) -> dict:
     writer_id = db.agent(conn, "writer")["id"]
     insert = """
         insert into outreach_drafts (client_id, campaign_id, contact_id, company_id, task_id, writer_agent_id, channel, step,
-                                     subject, body, playbook_used, research, score, grade_feedback, rewrites)
-        values (%s, %s, %s, %s, %s, %s, %s::channel, %s, %s, %s, %s, %s, %s, %s, %s) returning id"""
+                                     subject, body, playbook_used, research, score, grade_feedback, rewrites, purpose, strategy_id)
+        values (%s, %s, %s, %s, %s, %s, %s::channel, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) returning id"""
+    purpose = "first" if step == 1 else "follow_up"
+    sid = strat["id"] if strat else None
     row = db.one(conn, insert, (task["client_id"], task["campaign_id"], task["contact_id"], task["company_id"], task["id"],
-                                writer_id, channel, step, None if step > 1 else best.subject, best.message, db.jsonb(used),
-                                db.jsonb(research), best_s, f"{best_g.feedback}\nTop fix: {best_g.top_fix}", rewrites))
+                                writer_id, channel, step, None if (step > 1 or channel != "email") else best.subject,
+                                best.message, db.jsonb(used), db.jsonb(research), best_s,
+                                f"{best_g.feedback}\nTop fix: {best_g.top_fix}", rewrites, purpose, sid))
     out = {"draft_id": str(row["id"]), "score": best_s, "rewrites": rewrites, "channel": channel, "step": step}
 
     # A short LinkedIn note for you to send by hand, when the campaign uses LinkedIn and we know their profile.
-    if step == 1 and channel != "linkedin" and "linkedin" in channels and p.get("linkedin_url"):
+    wants_note = strat["channel_plan"] == "email_and_linkedin" if strat else "linkedin" in channels
+    if step == 1 and channel != "linkedin" and wants_note and "linkedin" in channels and p.get("linkedin_url"):
         note = parse(c, w_usage, model("writer"), w_sys, f"{about}\n\n{LINKEDIN_ASK}", WriterTurn, "low")
         if len(note.message) > 300:
             note = parse(c, w_usage, model("writer"), w_sys,
@@ -259,7 +282,8 @@ def draft_outreach(conn, c, task: dict, usages: dict) -> dict:
                          WriterTurn, "low")
         li = db.one(conn, insert, (task["client_id"], task["campaign_id"], task["contact_id"], task["company_id"], task["id"],
                                    writer_id, "linkedin", 1, None, note.message.strip(), db.jsonb([]), db.jsonb(research),
-                                   None, f"Not graded. {len(note.message.strip())} characters (LinkedIn allows 300).", 0))
+                                   None, f"Not graded. {len(note.message.strip())} characters (LinkedIn allows 300).", 0,
+                                   "first", sid))
         out["linkedin_draft_id"] = str(li["id"])
     return out
 
@@ -310,9 +334,16 @@ def write_report(conn, c, task: dict, usages: dict) -> dict:
     return {"report_id": str(row["id"]) if row else None, "headline": out.headline}
 
 
-HANDLERS = {"research_prospect": research_prospect, "draft_outreach": draft_outreach, "write_report": write_report}
+HANDLERS = {"research_prospect": research_prospect,
+            "qualify_prospect": lambda *a: strategy.qualify_prospect(*a),
+            "draft_outreach": draft_outreach,
+            "draft_reply": lambda *a: strategy.draft_reply(*a),
+            "prepare_handoff": lambda *a: strategy.prepare_handoff(*a),
+            "write_report": write_report}
 # Agents a task needs within budget before it starts.
-NEEDS = {"research_prospect": ["prospect-researcher"], "draft_outreach": ["writer", "grader"], "write_report": ["reporter"]}
+NEEDS = {"research_prospect": ["prospect-researcher"], "qualify_prospect": ["strategist"],
+         "draft_outreach": ["writer", "grader"], "draft_reply": ["writer", "grader"],
+         "prepare_handoff": ["meeting-briefer"], "write_report": ["reporter"]}
 
 
 # ─────────────────────────── running a task ───────────────────────────
@@ -350,8 +381,8 @@ def work_round(conn, c, workers: int, url: Optional[str] = None, stop: Optional[
             for result in pool.map(lambda t: run_task(t, c, url), batch):
                 log("  " + result)
                 ran += 1
-            if any(t["kind"] == "research_prospect" for t in batch):
-                supervisor.tick(conn)   # finished research becomes drafting work right away
+            if any(t["kind"] in ("research_prospect", "qualify_prospect") for t in batch):
+                supervisor.tick(conn)   # finished research and qualification become the next step right away
     return ran
 
 

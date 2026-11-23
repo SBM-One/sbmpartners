@@ -9,6 +9,8 @@ type Draft = {
   company: string | null; buyer_type: string | null; website: string | null; channel: string; step: number;
   subject: string | null; body: string; score: number | null; grade_feedback: string | null; rewrites: number;
   contact_id: string; country: string | null; email_basis: string; email_source: string | null; blockers: string[];
+  purpose: string; reply_text: string | null; reply_summary: string | null; reply_at: Date | null;
+  fit_score: number | null; pitch_angle: string | null; lead_with: string[] | null; channel_reason: string | null;
   playbook_used: string[]; research: { summary?: string; angle?: string; cautions?: string; fit?: number;
     facts?: { fact: string; source_url: string }[] };
 };
@@ -24,13 +26,17 @@ export default async function Approvals() {
       select d.id, d.created_at, cl.name as client, trim(coalesce(c.first_name, '') || ' ' || coalesce(c.last_name, '')) as contact,
              c.title as contact_title, c.email, co.name as company, co.type::text as buyer_type, co.website,
              d.channel::text, d.step, d.subject, d.body, d.score, d.grade_feedback, d.rewrites, d.playbook_used, d.research,
-             d.contact_id, coalesce(c.country, co.country) as country, c.email_basis, c.email_source, send_blockers(d.id) as blockers
+             d.contact_id, coalesce(c.country, co.country) as country, c.email_basis, c.email_source, send_blockers(d.id) as blockers,
+             d.purpose, ri.body as reply_text, ri.metadata->>'summary' as reply_summary, ri.occurred_at as reply_at,
+             ps.fit_score, ps.pitch_angle, ps.lead_with, ps.channel_reason
       from outreach_drafts d
       join clients cl on cl.id = d.client_id
       join contacts c on c.id = d.contact_id
       left join companies co on co.id = d.company_id
+      left join interactions ri on ri.id = d.reply_to_interaction_id
+      left join prospect_strategies ps on ps.id = d.strategy_id
       where d.status = 'pending_review'
-      order by d.created_at
+      order by case d.purpose when 'reply' then 0 else 1 end, d.created_at
       limit 25`,
     sql<Recent[]>`
       select d.id, d.status::text, d.reviewed_at, d.reviewed_by, d.subject, d.review_note, cl.name as client,
@@ -62,15 +68,16 @@ export default async function Approvals() {
                 <dl className="facts">
                   <dt>For</dt><dd>{d.client}</dd>
                   <dt>Buyer</dt><dd>{sentence(d.buyer_type) || "Unknown"}</dd>
-                  <dt>Send by</dt><dd>{sentence(d.channel)}, {d.step > 1 ? `follow-up ${d.step - 1}` : "first message"}</dd>
+                  <dt>Send by</dt><dd>{sentence(d.channel)}, {d.purpose === "reply" ? "answer to their reply" : d.purpose === "check_in"
+                    ? "check-in after their \u201cnot now\u201d" : d.step > 1 ? `follow-up ${d.step - 1}` : "first message"}</dd>
                   {d.email && <><dt>To</dt><dd style={{ wordBreak: "break-all" }}>{d.email}</dd></>}
                   <dt>Written</dt><dd>{ago(d.created_at)}</dd>
                 </dl>
                 <div className={`grade ${d.score != null && d.score < 65 ? "low" : ""}`}>
                   <b>{d.score ?? "–"}</b>out of 100. {verdict}
-                  {(d.rewrites > 0 || d.research?.fit != null) && (
+                  {(d.rewrites > 0 || d.fit_score != null || d.research?.fit != null) && (
                     <div className="muted" style={{ marginTop: 4 }}>
-                      {[d.rewrites > 0 && "Rewritten once", d.research?.fit != null && `Fit ${d.research.fit} of 5`].filter(Boolean).join(". ")}.
+                      {[d.rewrites > 0 && "Rewritten once", d.fit_score != null ? `Fit ${d.fit_score} of 100` : d.research?.fit != null && `Fit ${d.research.fit} of 5`].filter(Boolean).join(". ")}.
                     </div>
                   )}
                 </div>
@@ -104,10 +111,18 @@ export default async function Approvals() {
                   )}
                 </div>
               )}
+              {(d.purpose === "reply" || d.purpose === "check_in") && (d.reply_text || d.reply_summary) && (
+                <div className="notice" style={{ marginBottom: 16 }}>
+                  <p className="small muted">{d.purpose === "reply" ? "What they wrote" : "What they said"}{d.reply_at ? `, ${ago(d.reply_at)}` : ""}</p>
+                  <p className="copy" style={{ marginTop: 4 }}>{d.reply_text || d.reply_summary}</p>
+                  {d.purpose === "reply" && <p className="small muted" style={{ marginTop: 6 }}>If you already answered them from the mailbox, reject this draft.</p>}
+                </div>
+              )}
               <form action={reviewDraft} className="words">
                 <input type="hidden" name="id" value={d.id} />
-                {d.channel === "email" && <label className="field subject"><span>Subject</span><input name="subject" defaultValue={d.subject ?? ""} /></label>}
-                <label className="field body"><span>{d.channel === "linkedin" ? `LinkedIn note (${d.body.length} of 300 characters)` :
+                {d.channel === "email" && !(["reply", "check_in"].includes(d.purpose) && !d.subject) && <label className="field subject"><span>Subject</span><input name="subject" defaultValue={d.subject ?? ""} /></label>}
+                <label className="field body"><span>{d.channel === "linkedin" ? (d.purpose === "first" ? `LinkedIn note (${d.body.length} of 300 characters)` : "LinkedIn message, sent by you by hand") :
+                  d.purpose === "reply" ? "Our answer, sent in their thread" : d.purpose === "check_in" ? "Check-in, sent in their thread" :
                   d.step > 1 ? "Follow-up, sent as a reply in the same email thread" : "Message"}</span><textarea name="body" defaultValue={d.body} /></label>
                 {d.channel === "email" && <p className="small muted">The sender&apos;s name, postal address and an unsubscribe link are added under the email.</p>}
                 <label className="field"><span>Note for the team, if any</span><input name="note" placeholder="Why you approved, changed or rejected it" /></label>
@@ -118,8 +133,10 @@ export default async function Approvals() {
                   {d.website && <a className="textbtn quiet" href={d.website} target="_blank" rel="noreferrer noopener">Their website</a>}
                 </div>
                 <details className="research">
-                  <summary>Research and the Grader&apos;s notes</summary>
+                  <summary>Strategy, research and the Grader&apos;s notes</summary>
                   <div className="body">
+                    {d.pitch_angle && <div><h4>Strategy</h4><p>{d.pitch_angle}{d.lead_with?.length ? ` Lead with: ${d.lead_with.join(", ")}.` : ""}
+                      {d.channel_reason ? ` ${d.channel_reason}` : ""}</p></div>}
                     {d.grade_feedback && <div><h4>Grader</h4><p style={{ whiteSpace: "pre-wrap" }}>{d.grade_feedback}</p></div>}
                     {d.research?.summary && <div><h4>What research found</h4><p>{d.research.summary}</p></div>}
                     {d.research?.facts && d.research.facts.length > 0 && (

@@ -14,8 +14,11 @@ Sending
 Replies
   * Reads new messages in the inbox (it does not mark them as read), matches each to the buyer we wrote to,
     and sorts it: interested, question, not now, wrong person, not interested, unsubscribe, out of office, other.
-  * Any real reply stops that buyer's automatic follow-ups. "Unsubscribe" or "stop" ends all outreach to them
-    on every channel. Interested buyers and questions raise an urgent alert: you answer them yourself.
+  * Any real reply stops that buyer's automatic follow-ups (the database's apply_reply() does this, the same way
+    for replies you log by hand). "Unsubscribe" or "stop" ends all outreach to them on every channel. "Not now"
+    snoozes them for the campaign's snooze_days. Interested buyers and questions raise an urgent alert; the
+    Writer drafts an answer for your approval and, for interested buyers, the Meeting briefer writes a brief.
+  * Answers and check-ins go out as replies in the buyer's own thread.
   * Bounces mark the address invalid.
 
 Run:
@@ -91,11 +94,11 @@ def build(draft: dict, cfg: dict, box: dict, first: Optional[dict]) -> EmailMess
     to_name = " ".join(x for x in [draft["first_name"], draft["last_name"]] if x)
     msg["To"] = email.utils.formataddr((to_name, draft["email"])) if to_name else draft["email"]
     subject = draft["subject"]
-    if draft["step"] > 1 and first:
+    if (draft["step"] > 1 or draft.get("purpose") in ("reply", "check_in")) and first:
         subject = subject or ("Re: " + re.sub(r"^(re:\s*)+", "", first["subject"] or "", flags=re.I))
         if first.get("message_id"):
             msg["In-Reply-To"] = first["message_id"]
-            msg["References"] = first["message_id"]
+            msg["References"] = first.get("references") or first["message_id"]
     msg["Subject"] = subject or ""
     msg["Date"] = email.utils.formatdate(localtime=False)
     msg["Message-ID"] = email.utils.make_msgid(domain=box["address"].split("@")[1])
@@ -167,7 +170,15 @@ def send_due(conn, cfg: dict, now: Optional[dt.datetime] = None, smtp_factory=No
 def _send_one(conn, cfg, box, draft_id, now, smtp_factory, log) -> int:
     d = db.one(conn, DRAFT_SQL, (draft_id,))
     first = None
-    if d["step"] > 1:
+    if d.get("purpose") in ("reply", "check_in") and d.get("reply_to_interaction_id"):
+        rep = db.one(conn, "select subject, external_id from interactions where id = %s and channel = 'email'",
+                     (d["reply_to_interaction_id"],))
+        orig = db.one(conn, "select message_id from outreach_drafts where contact_id = %s and campaign_id is not distinct from %s "
+                            "and channel = 'email' and step = 1 and status = 'sent'", (d["contact_id"], d["campaign_id"]))
+        if rep and rep["external_id"]:
+            refs = " ".join(x for x in [(orig or {}).get("message_id"), rep["external_id"]] if x)
+            first = {"subject": rep["subject"], "message_id": rep["external_id"], "references": refs}
+    elif d["step"] > 1:
         first = db.one(conn, "select subject, message_id from outreach_drafts where contact_id = %s and campaign_id "
                              "is not distinct from %s and channel = 'email' and step = 1 and status = 'sent'",
                        (d["contact_id"], d["campaign_id"]))
@@ -332,10 +343,10 @@ def handle_message(conn, raw: bytes, ai=None, usage: Optional[Usage] = None, sor
         sort = ReplySort(category="other", summary="Not sorted (no AI key); please read it.")
 
     kind = "reply" if sort.category != "out_of_office" else "note"
-    db.all_rows(conn, """insert into interactions (client_id, campaign_id, company_id, contact_id, channel, direction, kind, actor,
+    filed = db.one(conn, """insert into interactions (client_id, campaign_id, company_id, contact_id, channel, direction, kind, actor,
                                                    subject, body, external_id, metadata)
                          values (%s, %s, %s, %s, 'email', 'inbound', %s::interaction_kind, 'buyer', %s, %s, %s, %s)
-                         on conflict (channel, external_id) do nothing""",
+                         on conflict (channel, external_id) do nothing returning id""",
                 (sent["client_id"], sent["campaign_id"], sent["company_id"], sent["contact_id"], kind, subject, text, msg_id,
                  db.jsonb({"category": sort.category, "summary": sort.summary, "referral": sort.referral, "from": sender})))
     who = db.one(conn, "select trim(coalesce(c.first_name,'') || ' ' || coalesce(c.last_name,'')) as name, co.name as company "
@@ -344,24 +355,16 @@ def handle_message(conn, raw: bytes, ai=None, usage: Optional[Usage] = None, sor
 
     if sort.category == "out_of_office":
         return f"out of office: {label}"
-    # A real answer: no more automatic follow-ups to this buyer for this client.
-    db.all_rows(conn, """update outreach_drafts set status = 'cancelled', review_note = 'Buyer replied'
-                         where contact_id = %s and client_id = %s and step > 1 and status in ('pending_review','approved')
-                           and send_claimed_at is null""", (sent["contact_id"], sent["client_id"]))
-    db.all_rows(conn, "update tasks set status = 'cancelled', finished_at = now() where contact_id = %s and client_id = %s "
-                      "and kind = 'draft_outreach' and status = 'queued'", (sent["contact_id"], sent["client_id"]))
+    # A real answer: no more automatic follow-ups; unsubscribe stops everything; "not now" snoozes (see apply_reply).
+    if filed:
+        db.one(conn, "select apply_reply(%s) as r", (filed["id"],))
     if sort.category == "unsubscribe":
-        db.one(conn, "select stop_contact(%s, %s, 'reply') as ok", (sent["contact_id"], f"Replied: {sort.summary}"[:300]))
         return f"unsubscribe: {label} stopped everywhere"
-    target = {"interested": "engaged", "question": "engaged", "not_now": "engaged", "wrong_person": "engaged",
-              "not_interested": "lost"}.get(sort.category)
-    if target and sent["campaign_id"]:
-        db.all_rows(conn, "update campaign_targets set status = %s::target_status, updated_at = now() "
-                          "where campaign_id = %s and contact_id = %s and status in ('queued','contacted','engaged')",
-                    (target, sent["campaign_id"], sent["contact_id"]))
     if sort.category in ("interested", "question"):
-        db.alert(conn, "buyer_replied", f"{label} replied ({sort.category.replace('_', ' ')}): {sort.summary} "
-                 "Answer them yourself from the mailbox.", severity="urgent", client_id=sent["client_id"],
+        nxt = ("The Writer is drafting an answer for your approval (Drafts page)"
+               + (" and a meeting brief (Meetings page)." if sort.category == "interested" else "."))
+        db.alert(conn, "buyer_replied", f"{label} replied ({sort.category.replace('_', ' ')}): {sort.summary} {nxt}",
+                 severity="urgent", client_id=sent["client_id"],
                  refs={"contact_id": str(sent["contact_id"]), "message_id": msg_id})
     elif sort.category in ("wrong_person", "other", "not_now"):
         extra = f" They suggested: {sort.referral}." if sort.referral else ""

@@ -32,7 +32,7 @@ async function gate<T>(q: Promise<T>): Promise<T> {
     return await q;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (/Not allowed yet|do-not-contact|asked not to be contacted|must be approved|un-sent/i.test(msg)) throw new Error(msg);
+    if (/Not allowed yet|do-not-contact|asked not to be contacted|must be approved|un-sent|meeting brief|Book the meeting|meeting date/i.test(msg)) throw new Error(msg);
     throw e;
   }
 }
@@ -210,4 +210,73 @@ export async function updateClient(form: FormData) {
   if (!Number.isInteger(limit) || limit < 0 || limit > 500) throw new Error("Daily limit must be 0 to 500");
   await sql`update clients set daily_draft_limit = ${limit} where id = ${str(form, "id")}`;
   revalidatePath("/clients");
+}
+
+// ─────────────────────────── qualification, conversations and meetings ───────────────────────────
+
+/** Overrule the Strategist for one buyer: pursue, nurture or disqualify. Your decision is never overwritten. */
+export async function setStrategyDecision(form: FormData) {
+  const me = await requireStaff();
+  const decision = str(form, "decision");
+  if (!["pursue", "nurture", "disqualify"].includes(decision)) throw new Error("Unknown decision");
+  const note = str(form, "note");
+  await sql`update prospect_strategies
+               set decision = ${decision}, decided_by = ${me.email}, decided_at = now(),
+                   reason = case when ${note} = '' then reason else ${note} || ' (' || ${me.name} || ')' end
+             where id = ${str(form, "id")}`;
+  revalidatePath("/buyers");
+}
+
+const REPLY_CATEGORIES = ["interested", "question", "not_now", "wrong_person", "not_interested", "unsubscribe", "other"];
+
+/** Log a reply that did not come by email (LinkedIn, a call). The same rules apply as for emailed replies. */
+export async function logReply(form: FormData) {
+  const me = await requireStaff();
+  const channel = str(form, "channel");
+  const category = str(form, "category");
+  const summary = str(form, "summary");
+  if (!["linkedin", "call", "email", "other"].includes(channel)) throw new Error("Unknown channel");
+  if (!REPLY_CATEGORIES.includes(category)) throw new Error("Choose what the buyer said");
+  if (!summary) throw new Error("Write a line about what they said");
+  const [i] = await sql<{ id: string }[]>`
+    insert into interactions (client_id, campaign_id, company_id, contact_id, channel, direction, kind, actor, body, metadata)
+    select ca.client_id, ca.id, coalesce(ct.company_id, c.company_id), c.id, ${channel}::channel, 'inbound', 'reply', 'buyer',
+           nullif(${str(form, "body")}, ''), ${sql.json({ category, summary, logged_by: me.email })}
+      from campaign_targets ct join campaigns ca on ca.id = ct.campaign_id join contacts c on c.id = ct.contact_id
+     where ct.campaign_id = ${str(form, "campaign_id")} and ct.contact_id = ${str(form, "contact_id")}
+    returning id`;
+  if (!i) throw new Error("That buyer is not in this campaign");
+  await sql`select apply_reply(${i.id})`;
+  revalidatePath("/buyers");
+}
+
+/** Ask the Meeting briefer for a brief now (for a buyer who said yes on a call, for example). */
+export async function requestBrief(form: FormData) {
+  const me = await requireStaff();
+  await sql`insert into tasks (kind, client_id, campaign_id, contact_id, company_id, priority, created_by, input)
+            select 'prepare_handoff', ca.client_id, ca.id, ct.contact_id, ct.company_id, 10, ${me.email}, '{}'::jsonb
+              from campaign_targets ct join campaigns ca on ca.id = ct.campaign_id
+             where ct.campaign_id = ${str(form, "campaign_id")} and ct.contact_id = ${str(form, "contact_id")}
+            on conflict do nothing`;
+  revalidatePath("/buyers");
+}
+
+/** Book the meeting: it is logged, the deal opens and automatic messages to the buyer stop. */
+export async function bookMeeting(form: FormData) {
+  const me = await requireStaff();
+  const at = str(form, "at");
+  const tz = str(form, "timezone") || "Europe/Madrid";
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(at)) throw new Error("Choose the meeting date and time");
+  try { new Intl.DateTimeFormat("en", { timeZone: tz }); } catch { throw new Error("Unknown time zone"); }
+  await gate(sql`select book_meeting(${str(form, "id")}, (${at}::timestamp at time zone ${tz}), ${str(form, "note")}, ${me.email})`);
+  revalidatePath("/", "layout");
+}
+
+/** After the meeting (or instead of it): held, no-show, cancelled, or not a qualified meeting. */
+export async function closeMeeting(form: FormData) {
+  const me = await requireStaff();
+  const outcome = str(form, "outcome");
+  if (!["held", "no_show", "cancelled", "not_qualified"].includes(outcome)) throw new Error("Unknown outcome");
+  await gate(sql`select close_meeting(${str(form, "id")}, ${outcome}, ${str(form, "note")}, ${me.email})`);
+  revalidatePath("/", "layout");
 }
