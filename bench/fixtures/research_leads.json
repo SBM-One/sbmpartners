@@ -1,0 +1,11 @@
+[
+  {"key": "quillfeather", "company": {"name": "Quillfeather Furniture Gallery", "domain": "quillfeatherfurniture.example", "type": "retailer",
+    "hq_city": "Bend", "hq_state": "OR", "country": "US", "website": "https://quillfeatherfurniture.example"},
+   "contact": {"first_name": "Marisol", "last_name": "Venkataraman-Holt", "title": "Owner", "email": "marisol@quillfeatherfurniture.example"}},
+  {"key": "tamarack-ember", "company": {"name": "Tamarack & Ember Design Studio", "domain": "tamarackember.example", "type": "design_firm",
+    "hq_city": "Boise", "hq_state": "ID", "country": "US", "website": "https://tamarackember.example"},
+   "contact": {"first_name": "Corwin", "last_name": "Achterberg", "title": "Principal", "email": "corwin@tamarackember.example"}},
+  {"key": "saltmarsh-inns", "company": {"name": "Saltmarsh Collective Inns", "domain": "saltmarshinns.example", "type": "hospitality",
+    "hq_city": "Beaufort", "hq_state": "SC", "country": "US", "website": "https://saltmarshinns.example"},
+   "contact": {"first_name": "Odalys", "last_name": "Fenwright", "title": "Director of Procurement", "email": "odalys@saltmarshinns.example"}}
+]

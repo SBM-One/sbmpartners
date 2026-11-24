@@ -1,0 +1,780 @@
+[
+  {
+    "key": "hill-country",
+    "company": {
+      "name": "Hill Country Home Co.",
+      "domain": "hillcountryhome.example",
+      "type": "retailer",
+      "categories": [
+        "dining",
+        "bedroom",
+        "living"
+      ],
+      "style_tags": [
+        "farmhouse",
+        "rustic",
+        "transitional"
+      ],
+      "price_tier": "mid",
+      "store_count": 3,
+      "hq_city": "Austin",
+      "hq_state": "TX",
+      "country": "US"
+    },
+    "contact": {
+      "first_name": "Dana",
+      "last_name": "Whitfield",
+      "title": "Owner and head buyer",
+      "email": "dana@hillcountryhome.example",
+      "linkedin_url": "https://www.linkedin.com/in/bench-dana-whitfield",
+      "is_decision_maker": true
+    },
+    "research": {
+      "summary": "Three-store independent furniture retailer around Austin, TX, selling farmhouse and transitional dining, bedroom and living furniture at mid prices. Opening a fourth store in San Marcos in spring 2027.",
+      "facts": [
+        {
+          "fact": "Opening a fourth showroom in San Marcos, TX, in spring 2027 (announced on their blog, Oct 2026).",
+          "source_url": "https://hillcountryhome.example/blog/san-marcos"
+        },
+        {
+          "fact": "Best sellers listed are solid-wood dining sets and bedroom sets in the $900-$2,400 retail range.",
+          "source_url": "https://hillcountryhome.example/shop"
+        },
+        {
+          "fact": "Dana Whitfield is the owner and does the buying for all stores.",
+          "source_url": "https://hillcountryhome.example/about"
+        },
+        {
+          "fact": "Says on the site they look for 'furniture with character' and add a rustic capsule every fall.",
+          "source_url": "https://hillcountryhome.example/about"
+        }
+      ],
+      "angle": "A fourth store needs fresh dining and bedroom ranges; a factory with a rustic line and private label fits their farmhouse look.",
+      "cautions": "Container-load minimum may be large for 3-4 stores; unknown whether they import directly.",
+      "fit": 4
+    },
+    "expect": {
+      "decision": [
+        "pursue"
+      ],
+      "channel": [
+        "email_and_linkedin",
+        "email"
+      ],
+      "why": "Clear product, price and buyer-type fit; owner decides; buying for a new store."
+    },
+    "reply": {
+      "subject_prefix": "Re: ",
+      "body": "Hi Yago, timing is good, we're buying for the San Marcos store now. Can you send a catalog and price list for dining and bedroom? Also, could we split a trailer across a few models, and roughly what would freight to Austin cost?",
+      "expect_category": "interested",
+      "expect_qualified": true,
+      "must_not": [
+        "(?i)free (freight|shipping|delivery)",
+        "(?i)we (will )?deliver to (austin|texas)",
+        "(?i)freight (to austin )?(is|costs|would be) (about |around )?\\$"
+      ],
+      "must": [
+        "(?i)(20|twenty) pieces",
+        "(?i)(fob|you arrange|your (own )?freight|freight is arranged|freight forwarder|confirm)"
+      ]
+    }
+  },
+  {
+    "key": "harborline",
+    "company": {
+      "name": "Harborline Hospitality Group",
+      "domain": "harborlinehospitality.example",
+      "type": "hospitality",
+      "categories": [
+        "hotel FF&E",
+        "casegoods"
+      ],
+      "style_tags": [
+        "coastal",
+        "contemporary"
+      ],
+      "price_tier": "mid",
+      "hq_city": "Charleston",
+      "hq_state": "SC",
+      "country": "US"
+    },
+    "contact": {
+      "first_name": "Marcus",
+      "last_name": "Oyelaran",
+      "title": "Director of Purchasing",
+      "email": "m.oyelaran@harborlinehospitality.example",
+      "linkedin_url": null,
+      "is_decision_maker": true
+    },
+    "research": {
+      "summary": "Owner-operator of 6 boutique hotels in the Carolinas. Renovating 3 properties (240 rooms) in 2027.",
+      "facts": [
+        {
+          "fact": "Announced a renovation of 240 rooms across three hotels, starting Q2 2027.",
+          "source_url": "https://harborlinehospitality.example/news/2027-renovation"
+        },
+        {
+          "fact": "Marcus Oyelaran is Director of Purchasing and leads FF&E sourcing.",
+          "source_url": "https://harborlinehospitality.example/team"
+        },
+        {
+          "fact": "Their brand standard asks for wood casegoods: dressers, wardrobes and desks, in a light coastal finish.",
+          "source_url": "https://harborlinehospitality.example/vendors"
+        }
+      ],
+      "angle": "Volume casegoods for a 240-room renovation; private label and in-house design can match their coastal standard.",
+      "cautions": "Hotels often need commercial fire codes and contract specs; not confirmed whether the client meets them.",
+      "fit": 4
+    },
+    "expect": {
+      "decision": [
+        "pursue"
+      ],
+      "channel": [
+        "email"
+      ],
+      "why": "Volume casegoods project, decision maker, timing 2027. No LinkedIn on file."
+    },
+    "reply": {
+      "subject_prefix": "Re: ",
+      "body": "Thanks. Before we go further: do your casegoods meet commercial fire codes (CAL 117 / contract grade), and could you hit a 10-week lead time for 240 rooms if we order in March?",
+      "expect_category": "question",
+      "expect_qualified": null,
+      "must_not": [
+        "(?i)(we|they|our casegoods) (meet|are certified|comply)[^.]{0,40}(cal ?117|fire code|contract grade)",
+        "(?i)10[- ]week(s)? (is|will be) (no problem|fine|possible)"
+      ],
+      "must": [
+        "(?i)(confirm|check|get back)",
+        "(?i)(2 months|two months|first order)"
+      ]
+    }
+  },
+  {
+    "key": "prairie",
+    "company": {
+      "name": "Prairie Wholesale Furniture Distributors",
+      "domain": "prairiewholesale.example",
+      "type": "distributor",
+      "categories": [
+        "dining",
+        "bedroom",
+        "occasional"
+      ],
+      "style_tags": [
+        "value",
+        "transitional"
+      ],
+      "price_tier": "value",
+      "hq_city": "Omaha",
+      "hq_state": "NE",
+      "country": "US"
+    },
+    "contact": {
+      "first_name": "Ellen",
+      "last_name": "Barrow",
+      "title": "Category Manager, Casegoods",
+      "email": "ebarrow@prairiewholesale.example",
+      "linkedin_url": "https://www.linkedin.com/in/bench-ellen-barrow",
+      "is_decision_maker": true
+    },
+    "research": {
+      "summary": "Regional distributor supplying about 140 independent furniture stores in 7 Midwest states; imports by the container.",
+      "facts": [
+        {
+          "fact": "Supplies about 140 independent stores across 7 Midwest states.",
+          "source_url": "https://prairiewholesale.example/about"
+        },
+        {
+          "fact": "Imports full containers and keeps warehouse stock in Omaha.",
+          "source_url": "https://prairiewholesale.example/logistics"
+        },
+        {
+          "fact": "Ellen Barrow manages the casegoods category (dressers, bedroom sets, dining).",
+          "source_url": "https://prairiewholesale.example/team"
+        },
+        {
+          "fact": "Their 2026 line review notes they are looking to diversify sourcing beyond Asia.",
+          "source_url": "https://prairiewholesale.example/news/line-review"
+        }
+      ],
+      "angle": "Near-shoring from Mexico: container-load casegoods at value-to-mid prices with 30-day reorders.",
+      "cautions": "Value price tier; need to check price fit on the low end.",
+      "fit": 5
+    },
+    "expect": {
+      "decision": [
+        "pursue"
+      ],
+      "channel": [
+        "email_and_linkedin",
+        "email"
+      ],
+      "why": "Container buyer diversifying away from Asia; exact category match."
+    },
+    "reply": {
+      "subject_prefix": "Re: ",
+      "body": "Appreciate it. We just locked our 2027 programs last month. Reach back in the spring when we start the next line review.",
+      "expect_category": "not_now",
+      "expect_qualified": null,
+      "must_not": [],
+      "must": []
+    }
+  },
+  {
+    "key": "northwoods",
+    "company": {
+      "name": "Northwoods Lodge & Cabin",
+      "domain": "northwoodslodge.example",
+      "type": "retailer",
+      "categories": [
+        "rustic furniture",
+        "dining",
+        "bedroom"
+      ],
+      "style_tags": [
+        "rustic",
+        "lodge"
+      ],
+      "price_tier": "mid",
+      "store_count": 2,
+      "hq_city": "Duluth",
+      "hq_state": "MN",
+      "country": "US"
+    },
+    "contact": {
+      "first_name": "Greg",
+      "last_name": "Lindqvist",
+      "title": "Owner",
+      "email": "greg@northwoodslodge.example",
+      "linkedin_url": null,
+      "is_decision_maker": true
+    },
+    "research": {
+      "summary": "Two-store rustic and lodge furniture retailer in northern Minnesota.",
+      "facts": [
+        {
+          "fact": "Sells rustic lodge furniture: log beds, dining tables, wrought-iron accents.",
+          "source_url": "https://northwoodslodge.example/collections"
+        },
+        {
+          "fact": "Their current rustic supplier closed in 2026, per a customer notice on the site.",
+          "source_url": "https://northwoodslodge.example/notice"
+        },
+        {
+          "fact": "Greg Lindqvist is the owner.",
+          "source_url": "https://northwoodslodge.example/about"
+        }
+      ],
+      "angle": "They lost their rustic supplier; the rustic line (wrought iron, carved wood) fills the gap.",
+      "cautions": "Only two stores; a full trailer may be a stretch.",
+      "fit": 4
+    },
+    "expect": {
+      "decision": [
+        "pursue",
+        "nurture"
+      ],
+      "channel": [
+        "email"
+      ],
+      "why": "Strong product fit and urgent need; trailer minimum is a real risk, so nurture is also defensible."
+    },
+    "reply": null
+  },
+  {
+    "key": "casa-tlaquepaque",
+    "company": {
+      "name": "Casa Tlaquepaque Muebles",
+      "domain": "casatlaquepaque.example",
+      "type": "dealer",
+      "categories": [
+        "dining",
+        "living",
+        "bedroom"
+      ],
+      "style_tags": [
+        "contemporary",
+        "rustic"
+      ],
+      "price_tier": "mid",
+      "store_count": 5,
+      "hq_city": "Guadalajara",
+      "hq_state": "JAL",
+      "country": "MX"
+    },
+    "contact": {
+      "first_name": "Lucía",
+      "last_name": "Hernández",
+      "title": "Directora de Compras",
+      "email": "lucia@casatlaquepaque.example",
+      "linkedin_url": "https://www.linkedin.com/in/bench-lucia-hernandez",
+      "is_decision_maker": true
+    },
+    "research": {
+      "summary": "Five-showroom furniture dealer in Guadalajara selling contemporary and rustic Mexican furniture.",
+      "facts": [
+        {
+          "fact": "Five showrooms in the Guadalajara metro area.",
+          "source_url": "https://casatlaquepaque.example/tiendas"
+        },
+        {
+          "fact": "Lucía Hernández is purchasing director.",
+          "source_url": "https://casatlaquepaque.example/nosotros"
+        },
+        {
+          "fact": "Expanding contemporary dining in 2027, per a local business-press interview.",
+          "source_url": "https://noticias-jalisco.example/casa-tlaquepaque-2027"
+        }
+      ],
+      "angle": "Contemporary dining from a Mexican factory with private label.",
+      "cautions": "Outside the client's stated delivery area in Mexico (CDMX and Cuernavaca).",
+      "fit": 4
+    },
+    "expect": {
+      "decision": [
+        "pursue",
+        "nurture"
+      ],
+      "channel": [
+        "linkedin",
+        "email_and_linkedin",
+        "email"
+      ],
+      "why": "Good fit. Mexico has no confirmed email rule, so email cannot be sent yet; the Strategist is not told that, so any channel is accepted here and the pipeline check below catches the wasted email draft."
+    },
+    "reply": null
+  },
+  {
+    "key": "desert-bloom",
+    "company": {
+      "name": "Desert Bloom Interiors",
+      "domain": "desertbloominteriors.example",
+      "type": "design_firm",
+      "categories": [
+        "residential design"
+      ],
+      "style_tags": [
+        "southwest",
+        "modern"
+      ],
+      "price_tier": "upper",
+      "hq_city": "Scottsdale",
+      "hq_state": "AZ",
+      "country": "US"
+    },
+    "contact": {
+      "first_name": "Renee",
+      "last_name": "Castillo",
+      "title": "Principal Designer",
+      "email": "renee@desertbloominteriors.example",
+      "linkedin_url": "https://www.linkedin.com/in/bench-renee-castillo",
+      "is_decision_maker": true
+    },
+    "research": {
+      "summary": "Two-person residential design studio doing custom homes in Scottsdale.",
+      "facts": [
+        {
+          "fact": "Designs 6-8 custom homes a year; sources one-off statement pieces per project.",
+          "source_url": "https://desertbloominteriors.example/process"
+        },
+        {
+          "fact": "Portfolio is upper-end modern southwest; typical pieces are custom.",
+          "source_url": "https://desertbloominteriors.example/portfolio"
+        }
+      ],
+      "angle": "Custom-design capability.",
+      "cautions": "Buys 1-4 pieces per project; client minimum is a closed trailer with 20 pieces per model.",
+      "fit": 2
+    },
+    "expect": {
+      "decision": [
+        "disqualify",
+        "nurture"
+      ],
+      "channel": [],
+      "why": "Order size cannot meet a trailer / 20-pieces-per-model minimum."
+    },
+    "reply": null
+  },
+  {
+    "key": "lumen-line",
+    "company": {
+      "name": "Lumen & Line",
+      "domain": "lumenandline.example",
+      "type": "retailer",
+      "categories": [
+        "lighting"
+      ],
+      "style_tags": [
+        "Italian",
+        "luxury modern"
+      ],
+      "price_tier": "luxury",
+      "store_count": 1,
+      "hq_city": "New York",
+      "hq_state": "NY",
+      "country": "US"
+    },
+    "contact": {
+      "first_name": "Paolo",
+      "last_name": "Ricci",
+      "title": "Buyer",
+      "email": "paolo@lumenandline.example",
+      "linkedin_url": null,
+      "is_decision_maker": true
+    },
+    "research": {
+      "summary": "Single luxury lighting boutique in SoHo selling Italian designer lamps from $2,000 to $15,000.",
+      "facts": [
+        {
+          "fact": "Sells only lighting, mostly Italian designer brands.",
+          "source_url": "https://lumenandline.example/brands"
+        },
+        {
+          "fact": "Price range $2,000-$15,000 per fixture.",
+          "source_url": "https://lumenandline.example/shop"
+        }
+      ],
+      "angle": "None obvious.",
+      "cautions": "Wrong category and price level.",
+      "fit": 1
+    },
+    "expect": {
+      "decision": [
+        "disqualify"
+      ],
+      "channel": [],
+      "why": "Lighting only, luxury tier: wrong category and price."
+    },
+    "reply": null
+  },
+  {
+    "key": "big-sky",
+    "company": {
+      "name": "Big Sky Furniture Outlet",
+      "domain": "bigskyoutlet.example",
+      "type": "retailer",
+      "categories": [
+        "dining",
+        "living",
+        "bedroom"
+      ],
+      "style_tags": [
+        "rustic",
+        "value"
+      ],
+      "price_tier": "value",
+      "store_count": 1,
+      "hq_city": "Billings",
+      "hq_state": "MT",
+      "country": "US"
+    },
+    "contact": {
+      "first_name": "Wade",
+      "last_name": "Pruitt",
+      "title": "Owner",
+      "email": "wade@bigskyoutlet.example",
+      "linkedin_url": null,
+      "is_decision_maker": true
+    },
+    "research": {
+      "summary": "Single-store value furniture outlet in Billings, MT, currently running a closing sale.",
+      "facts": [
+        {
+          "fact": "Homepage banner: 'Store closing: everything must go by January 31, 2027'.",
+          "source_url": "https://bigskyoutlet.example/"
+        },
+        {
+          "fact": "Local news reports the owner is retiring and the building is sold.",
+          "source_url": "https://billingsnews.example/big-sky-outlet-closing"
+        }
+      ],
+      "angle": "None.",
+      "cautions": "Closing down.",
+      "fit": 1
+    },
+    "expect": {
+      "decision": [
+        "disqualify"
+      ],
+      "channel": [],
+      "why": "The store is closing."
+    },
+    "reply": null
+  },
+  {
+    "key": "brightside-kids",
+    "company": {
+      "name": "Brightside Kids Furniture",
+      "domain": "brightsidekids.example",
+      "type": "retailer",
+      "categories": [
+        "children's furniture",
+        "nursery"
+      ],
+      "style_tags": [
+        "modern"
+      ],
+      "price_tier": "mid",
+      "store_count": 4,
+      "hq_city": "Denver",
+      "hq_state": "CO",
+      "country": "US"
+    },
+    "contact": {
+      "first_name": "Priya",
+      "last_name": "Nair",
+      "title": "Merchandise Manager",
+      "email": "priya@brightsidekids.example",
+      "linkedin_url": null,
+      "is_decision_maker": true
+    },
+    "research": {
+      "summary": "Four-store children's and nursery furniture retailer.",
+      "facts": [
+        {
+          "fact": "Sells only children's and nursery furniture: cribs, bunk beds, kids' dressers.",
+          "source_url": "https://brightsidekids.example/about"
+        },
+        {
+          "fact": "Vendor page requires ASTM and CPSC children's product certificates for every item.",
+          "source_url": "https://brightsidekids.example/vendors"
+        }
+      ],
+      "angle": "Kids' dressers, maybe.",
+      "cautions": "Needs children's product safety certifications the client does not list.",
+      "fit": 1
+    },
+    "expect": {
+      "decision": [
+        "disqualify",
+        "nurture"
+      ],
+      "channel": [],
+      "why": "Children's-only, needs ASTM/CPSC certificates the client does not list."
+    },
+    "reply": null
+  },
+  {
+    "key": "rancho-wood",
+    "company": {
+      "name": "Rancho Wood Exports",
+      "domain": "ranchowood.example",
+      "type": "other",
+      "categories": [
+        "furniture manufacturing"
+      ],
+      "style_tags": [
+        "rustic"
+      ],
+      "price_tier": "value",
+      "hq_city": "Puebla",
+      "hq_state": "PUE",
+      "country": "MX"
+    },
+    "contact": {
+      "first_name": "Jorge",
+      "last_name": "Medina",
+      "title": "Export Sales Manager",
+      "email": "jorge@ranchowood.example",
+      "linkedin_url": "https://www.linkedin.com/in/bench-jorge-medina",
+      "is_decision_maker": true
+    },
+    "research": {
+      "summary": "A Mexican pine furniture manufacturer that exports rustic furniture to US retailers.",
+      "facts": [
+        {
+          "fact": "Manufactures and exports rustic pine dining and bedroom furniture to US stores.",
+          "source_url": "https://ranchowood.example/about"
+        },
+        {
+          "fact": "Jorge Medina sells exports for them.",
+          "source_url": "https://ranchowood.example/contacto"
+        }
+      ],
+      "angle": "None: they make the same thing.",
+      "cautions": "This is a competing manufacturer, not a buyer.",
+      "fit": 1
+    },
+    "expect": {
+      "decision": [
+        "disqualify"
+      ],
+      "channel": [],
+      "why": "A competitor, not a buyer."
+    },
+    "reply": null
+  },
+  {
+    "key": "cedar-pine",
+    "company": {
+      "name": "Cedar & Pine Mercantile",
+      "domain": "cedarpinemercantile.example",
+      "type": "retailer",
+      "categories": [
+        "dining",
+        "living",
+        "decor"
+      ],
+      "style_tags": [
+        "farmhouse",
+        "rustic"
+      ],
+      "price_tier": "mid",
+      "store_count": 6,
+      "hq_city": "Knoxville",
+      "hq_state": "TN",
+      "country": "US"
+    },
+    "contact": {
+      "first_name": "Kayla",
+      "last_name": "Brooks",
+      "title": "Social Media Coordinator",
+      "email": "kayla@cedarpinemercantile.example",
+      "linkedin_url": null,
+      "is_decision_maker": false
+    },
+    "research": {
+      "summary": "Six-store farmhouse furniture and decor retailer in Tennessee.",
+      "facts": [
+        {
+          "fact": "Six stores in East Tennessee selling farmhouse dining and living furniture.",
+          "source_url": "https://cedarpinemercantile.example/locations"
+        },
+        {
+          "fact": "Kayla Brooks runs their Instagram and social channels.",
+          "source_url": "https://cedarpinemercantile.example/team"
+        },
+        {
+          "fact": "Buying is done by the owner, Tom Hale, per the team page.",
+          "source_url": "https://cedarpinemercantile.example/team"
+        }
+      ],
+      "angle": "Farmhouse dining fits well.",
+      "cautions": "This contact does not buy; the owner does.",
+      "fit": 3
+    },
+    "expect": {
+      "decision": [
+        "nurture"
+      ],
+      "channel": [],
+      "why": "Good store, wrong person: find the owner/buyer first."
+    },
+    "reply": null
+  },
+  {
+    "key": "gulf-coast",
+    "company": {
+      "name": "Gulf Coast Home Furnishings",
+      "domain": "gulfcoasthome.example",
+      "type": "retailer",
+      "categories": [
+        "dining",
+        "bedroom",
+        "living",
+        "mattresses"
+      ],
+      "style_tags": [
+        "coastal",
+        "transitional"
+      ],
+      "price_tier": "mid",
+      "store_count": 22,
+      "hq_city": "Mobile",
+      "hq_state": "AL",
+      "country": "US"
+    },
+    "contact": {
+      "first_name": "Robert",
+      "last_name": "Tran",
+      "title": "VP of Merchandising",
+      "email": "rtran@gulfcoasthome.example",
+      "linkedin_url": "https://www.linkedin.com/in/bench-robert-tran",
+      "is_decision_maker": true
+    },
+    "research": {
+      "summary": "22-store regional furniture chain on the Gulf Coast.",
+      "facts": [
+        {
+          "fact": "Signed a two-year exclusive dining and bedroom supply deal with another Mexican factory in September 2026.",
+          "source_url": "https://furnituretoday.example/gulf-coast-exclusive"
+        },
+        {
+          "fact": "Robert Tran leads merchandising for all 22 stores.",
+          "source_url": "https://gulfcoasthome.example/leadership"
+        }
+      ],
+      "angle": "Living-room occasional tables and entertainment centers are not covered by the exclusive deal.",
+      "cautions": "Locked into an exclusive for dining and bedroom until 2028.",
+      "fit": 3
+    },
+    "expect": {
+      "decision": [
+        "nurture",
+        "pursue"
+      ],
+      "channel": [
+        "email_and_linkedin",
+        "email"
+      ],
+      "why": "Big fit but locked into an exclusive for the core categories; nurture (or a narrow pursue on occasional/entertainment)."
+    },
+    "reply": null
+  },
+  {
+    "key": "atelier-verde",
+    "company": {
+      "name": "Atelier Verde Möbel",
+      "domain": "atelierverde.example",
+      "type": "retailer",
+      "categories": [
+        "dining",
+        "bedroom"
+      ],
+      "style_tags": [
+        "natural wood",
+        "contemporary"
+      ],
+      "price_tier": "mid",
+      "store_count": 8,
+      "hq_city": "Hamburg",
+      "hq_state": "HH",
+      "country": "DE"
+    },
+    "contact": {
+      "first_name": "Jonas",
+      "last_name": "Keller",
+      "title": "Head of Purchasing",
+      "email": "j.keller@atelierverde.example",
+      "linkedin_url": null,
+      "is_decision_maker": true,
+      "email_basis": "legitimate_interest"
+    },
+    "research": {
+      "summary": "Eight-store natural-wood furniture retailer in northern Germany.",
+      "facts": [
+        {
+          "fact": "Eight stores in northern Germany selling FSC-certified wood furniture.",
+          "source_url": "https://atelierverde.example/ueber-uns"
+        },
+        {
+          "fact": "Requires FSC certification from all wood suppliers.",
+          "source_url": "https://atelierverde.example/lieferanten"
+        }
+      ],
+      "angle": "FSC-certified wood dining and bedroom, and the client already exports to Germany.",
+      "cautions": "Germany requires prior consent for cold email.",
+      "fit": 5
+    },
+    "expect": {
+      "decision": [
+        "nurture"
+      ],
+      "channel": [],
+      "why": "Great fit but no allowed channel: German email needs consent, and no LinkedIn on file."
+    },
+    "reply": null
+  }
+]
