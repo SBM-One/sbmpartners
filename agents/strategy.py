@@ -60,8 +60,10 @@ class Strategy(BaseModel):
     offer: Optional[str] = Field(None, description="The offer from the fact sheet that fits this buyer best, or null")
     objections: List[Objection] = Field(description="1-3 likely objections with answers")
     first_ask: str = Field(description="The one low-effort next step to ask for (e.g. a sample kit, a line sheet)")
-    channel_plan: Literal["email", "email_and_linkedin", "linkedin"] = Field(
-        description="email; email_and_linkedin (email plus a short connection note); linkedin (note only, no email)")
+    channel_plan: Literal["email", "email_and_linkedin", "linkedin", "whatsapp"] = Field(
+        description="The main way in: email; email_and_linkedin (email plus a short connection note); linkedin (note only, "
+                    "no email); whatsapp (only when neither email nor LinkedIn is possible). The writer plans the full "
+                    "sequence of channels from this.")
     channel_reason: str = Field(description="Why this channel, in a sentence")
 
 
@@ -85,11 +87,18 @@ customers.
 
 Choose the channel from what is allowed (you are told which channels the campaign uses and whether the
 rules allow email to this person). Prefer email when it is allowed; add a LinkedIn connection note when the
-campaign uses LinkedIn and we know their profile; use LinkedIn only when email is not allowed or not possible.
+campaign uses LinkedIn and we know their profile; use LinkedIn only when email is not allowed or not possible; WhatsApp only when neither is possible
+(the writer may still add a WhatsApp step to the sequence when we have their number).
 
 <client_fact_sheet>
 {brief}
 </client_fact_sheet>"""
+
+def wa_number(phone: Optional[str]) -> Optional[str]:
+    """A phone number as WhatsApp wants it in a wa.me link: digits only, with the country code. None if unusable."""
+    digits = re.sub(r"\D", "", phone or "")
+    return digits if 10 <= len(digits) <= 15 else None
+
 
 # Email blockers that are about the person or their country, not a setup step you can fix in a minute.
 HARD_EMAIL = re.compile(r"No email address|invalid or bounced|needs the buyer's prior consent|is switched off|do-not-contact|asked us not", re.I)
@@ -113,7 +122,8 @@ def reachability(conn, task: dict, p: dict) -> dict:
     hard = [b for b in blockers if HARD_EMAIL.search(b)]
     return {"channels": channels, "min_fit_score": (camp or {}).get("min_fit_score") or 60,
             "email_possible": "email" in channels and not hard, "email_blockers": blockers, "email_hard_blockers": hard,
-            "linkedin_possible": "linkedin" in channels and bool(p.get("linkedin_url"))}
+            "linkedin_possible": "linkedin" in channels and bool(p.get("linkedin_url")),
+            "whatsapp_possible": "whatsapp" in channels and bool(wa_number(p.get("phone")))}
 
 
 def settle(s: Strategy, score: int, reach: dict, product_fit: int) -> tuple[str, str, str]:
@@ -128,22 +138,29 @@ def settle(s: Strategy, score: int, reach: dict, product_fit: int) -> tuple[str,
     if plan == "email_and_linkedin" and not reach["linkedin_possible"]:
         plan = "email"
     if plan == "linkedin" and not reach["linkedin_possible"]:
+        plan = "email" if reach["email_possible"] else "whatsapp" if reach.get("whatsapp_possible") else "linkedin"
+    if plan == "whatsapp" and not reach.get("whatsapp_possible"):
         plan = "email" if reach["email_possible"] else "linkedin"
-    if decision == "pursue" and not (reach["email_possible"] or reach["linkedin_possible"]):
+    if decision == "pursue" and not (reach["email_possible"] or reach["linkedin_possible"] or reach.get("whatsapp_possible")):
         decision = "nurture"
         reason += (" (Held back: no channel the rules allow. "
-                   + (" ".join(reach["email_hard_blockers"]) or "No email and no LinkedIn profile on file.") + ")")
+                   + (" ".join(reach["email_hard_blockers"]) or "No email, LinkedIn profile or WhatsApp number on file.") + ")")
     return decision, reason, plan
 
 
 def qualify_prospect(conn, c, task: dict, usages: dict) -> dict:
-    usage = usages.setdefault("strategist", Usage())
-    cl = db.one(conn, "select brief, brief_approved_at from clients where id = %s", (task["client_id"],))
-    if not cl["brief"] or cl["brief_approved_at"] is None:
-        raise RuntimeError("The client has no approved fact sheet (approve it on the Clients page).")
+    """A separate scoring task (older queue entries; new research tasks score the buyer themselves)."""
     research_id = task["input"].get("research_task_id") or task["parent_id"]
     research = ((db.one(conn, "select output from tasks where id = %s", (research_id,)) or {}).get("output") or {}
                 if research_id else {})
+    return score_prospect(conn, c, task, research, research_id, usages.setdefault("researcher", Usage()))
+
+
+def score_prospect(conn, c, task: dict, research: dict, research_id, usage: Usage) -> dict:
+    """The researcher's second half: score the fit, decide pursue / nurture / disqualify, and plan the pitch."""
+    cl = db.one(conn, "select brief, brief_approved_at from clients where id = %s", (task["client_id"],))
+    if not cl["brief"] or cl["brief_approved_at"] is None:
+        raise RuntimeError("The client has no approved fact sheet (approve it on the Clients page).")
     p = T.contact_row(conn, task["contact_id"])
     reach = reachability(conn, task, p)
     brief_txt = json.dumps({k: v for k, v in cl["brief"].items() if not k.startswith("_")}, indent=1)
@@ -162,8 +179,9 @@ def qualify_prospect(conn, c, task: dict, usages: dict) -> dict:
                f"Email to this person allowed by the rules: {'yes' if reach['email_possible'] else 'no'}"
                f"{' (' + ' '.join(reach['email_hard_blockers']) + ')' if reach['email_hard_blockers'] else ''}\n"
                f"LinkedIn profile on file: {'yes' if p.get('linkedin_url') else 'no'}\n"
+               f"WhatsApp number on file (and the campaign uses WhatsApp): {'yes' if reach['whatsapp_possible'] else 'no'}\n"
                f"Minimum fit score for this campaign: {reach['min_fit_score']} of 100")
-    s = T.parse(c, usage, T.model("strategist"), system, content, Strategy, "medium")
+    s = T.parse(c, usage, T.model("researcher"), system, content, Strategy, "medium")
     score, breakdown = fit_score(s)
     product_fit = next(r["score"] for r in breakdown if r["key"] == "product_fit")
     decision, reason, plan = settle(s, score, reach, product_fit)
@@ -264,7 +282,7 @@ they said not now) and ask one easy question. No pressure, no fake urgency, no "
 
 def draft_reply(conn, c, task: dict, usages: dict) -> dict:
     w_usage = usages.setdefault("writer", Usage())
-    g_usage = usages.setdefault("grader", Usage())
+    g_usage = usages.setdefault("reviewer", Usage())
     purpose = task["input"].get("purpose") or "reply"
     rep = db.one(conn, "select * from interactions where id = %s", (task["input"].get("reply_interaction_id"),))
     if not rep:
@@ -284,7 +302,10 @@ def draft_reply(conn, c, task: dict, usages: dict) -> dict:
     research = ((db.one(conn, "select output from tasks where id = %s", (research_id,)) or {}).get("output") or {}
                 if research_id else {})
 
-    channel = rep["channel"] if rep["channel"] in ("email", "linkedin") else ("email" if p.get("email") else "linkedin")
+    if rep["channel"] == "whatsapp" and wa_number(p.get("phone")):   # they wrote on WhatsApp: answer there (sent by hand)
+        channel = "whatsapp"
+    else:
+        channel = rep["channel"] if rep["channel"] in ("email", "linkedin") else ("email" if p.get("email") else "linkedin")
     if channel == "email" and not p.get("email"):
         channel = "linkedin"
     if channel == "linkedin" and not p.get("linkedin_url") and p.get("email"):
@@ -299,7 +320,9 @@ def draft_reply(conn, c, task: dict, usages: dict) -> dict:
         ask = REPLY_ASK.format(category=(meta.get("category") or "other").replace("_", " "), summary=meta.get("summary") or "",
                                sender=brief.get("sender_name") or "our team")
     ask += ("\nLeave subject empty: it goes out as a reply." if threaded else
-            "\nWrite a short subject line." if channel == "email" else "\nLeave subject empty (LinkedIn message).")
+            "\nWrite a short subject line." if channel == "email" else
+            "\nLeave subject empty (WhatsApp message, at most 600 characters, no link)." if channel == "whatsapp" else
+            "\nLeave subject empty (LinkedIn message).")
     if channel == "email":
         ask += T.FOOTER_NOTE
     facts = "\n".join(f"- {f['fact']} ({f['source_url']})" for f in research.get("facts", [])) or "- (no verified facts)"
@@ -314,7 +337,7 @@ def draft_reply(conn, c, task: dict, usages: dict) -> dict:
         stage = ("The buyer said not now earlier; this is the one check-in after the wait (score 'handling' on how it "
                  "addresses their reason)" if purpose == "check_in" else
                  "The buyer replied; this is our answer (score 'handling' on how well it answers what they wrote)")
-        g = T.parse(c, g_usage, T.model("grader"), g_sys,
+        g = T.parse(c, g_usage, T.model("reviewer"), g_sys,
                     f"{about}\nChannel: {channel}. {stage}. The sender's address and unsubscribe link are added "
                     f"automatically.\n\nConversation so far:\n{convo}\n\nWRITER:\n"
                     f"{f'[Subject: {w.subject}]' + chr(10) if w.subject and not threaded else ''}{w.message}", T.Grade, "medium")
@@ -380,7 +403,7 @@ CHECK_LABEL = {"interest": "Interest", "product_fit": "Product fit", "authority"
 
 
 def prepare_handoff(conn, c, task: dict, usages: dict) -> dict:
-    usage = usages.setdefault("meeting-briefer", Usage())
+    usage = usages.setdefault("writer", Usage())
     if db.one(conn, "select 1 from meeting_handoffs where client_id = %s and contact_id = %s and status in ('ready','booked')",
               (task["client_id"], task["contact_id"])):
         return {"skipped": "a meeting brief for this buyer is already open"}
@@ -397,7 +420,7 @@ def prepare_handoff(conn, c, task: dict, usages: dict) -> dict:
     content = (f"Buyer: {T.who(p)}\nResearch: {research.get('summary', '(none)')}\n{facts}{strategy_text(strat)}\n\n"
                f"Conversation, oldest first:\n{history_text(hist)}")
     system = [{"type": "text", "cache_control": {"type": "ephemeral"}, "text": BRIEFER_SYSTEM.format(brief=brief_txt)}]
-    h = T.parse(c, usage, T.model("meeting-briefer"), system, content, Handoff, "medium")
+    h = T.parse(c, usage, T.model("writer"), system, content, Handoff, "medium")
 
     checks = {k.key: k for k in h.checks}
     qualified = bool(h.qualified and all(checks.get(k) and checks[k].status == "yes" for k in ("interest", "product_fit"))

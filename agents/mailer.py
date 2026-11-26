@@ -393,7 +393,7 @@ def read_replies(conn, cfg: dict, ai=None, imap_factory=None, log=print) -> int:
     """Read new inbox messages since the last run and file them. Returns how many were filed."""
     box = mailbox(conn, cfg)
     usage = Usage()
-    mdl = db.TEAM["reply-sorter"][1]
+    mdl = db.TEAM["reviewer"][1]
     filed = 0
     imap = None
     try:
@@ -424,7 +424,7 @@ def read_replies(conn, cfg: dict, ai=None, imap_factory=None, log=print) -> int:
         except Exception:
             pass
     if usage.input_tokens:
-        db.record_run(conn, "reply-sorter", usage, f"sorted {filed} replies")
+        db.record_run(conn, "reviewer", usage, f"sorted {filed} replies")
     return filed
 
 

@@ -248,6 +248,17 @@ details.research a { color: var(--aegean); text-decoration: underline; text-unde
 .settings .check { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--ink-soft); }
 .copy { white-space: pre-wrap; font-size: 15px; line-height: 1.6; color: var(--ink); max-width: 40em; user-select: all; }
 
+/* daily research quota */
+.quota { display: grid; gap: 16px; margin-top: 22px; max-width: 760px; }
+.quota .row { display: grid; grid-template-columns: 170px 1fr 120px; gap: 16px; align-items: center; font-size: 14px; }
+.quota .lbl { color: var(--muted); }
+.quota .track { position: relative; height: 10px; background: var(--rule-soft); }
+.quota .fill { position: absolute; inset: 0 auto 0 0; background: var(--aegean); }
+.quota .fill.ok { background: var(--navy); }
+.quota .fill.part { background: var(--sky); }
+.quota .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+@media (max-width: 640px) { .quota .row { grid-template-columns: 1fr 90px; } .quota .track { grid-column: 1 / -1; grid-row: 2; } }
+
 /* ---------- today: the agents' work ---------- */
 .ledger.latest { margin-top: 8px; }
 .ledger.latest td { padding-top: 12px; padding-bottom: 12px; }

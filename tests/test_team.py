@@ -56,6 +56,9 @@ def fake_ai(calls):
             out = team.ProspectBrief(summary="Oak-focused shop.", angle="Fits their oak range.", cautions="", fit=4, facts=[
                 team.Fact(fact="Carries solid oak tables", source_url=OPENED),
                 team.Fact(fact="Made-up fact", source_url="https://never-opened.example/x")])
+        elif fmt is team.ChannelPlan:
+            out = team.ChannelPlan(steps=[team.PlanStep(day=0, channel='email', purpose='first email'),
+                                          team.PlanStep(day=0, channel='linkedin', purpose='note')], why='x')
         elif fmt is WriterTurn:
             calls["writer"] += 1
             out = WriterTurn(subject="Oak for your floor", message=f"Hi, draft {calls['writer']}.", playbook_used=[1, 99])
@@ -126,19 +129,19 @@ def main():
     print("ok: daily pacing holds on the next round")
 
     # Budget cap: the Grader runs out, so the Writer's tasks wait and you get an urgent alert.
-    db.all_rows(conn, "update agents set monthly_budget_cents = 1 where name = 'grader'")
+    db.all_rows(conn, "update agents set monthly_budget_cents = 1 where name = 'reviewer'")
     db.all_rows(conn, "update outreach_drafts set created_at = created_at - interval '1 day' where client_id = %s", (t["client"],))
     before = calls["writer"]
     team.work_round(conn, ai, workers=2, url=URL, log=lambda m: None)
-    assert db.one(conn, "select active from agents where name = 'grader'")["active"] is False, "over-budget agent not paused"
-    assert db.one(conn, "select 1 from alerts where kind = 'budget_cap' and refs->>'agent' = 'grader'"), "no budget alert"
+    assert db.one(conn, "select active from agents where name = 'reviewer'")["active"] is False, "over-budget agent not paused"
+    assert db.one(conn, "select 1 from alerts where kind = 'budget_cap' and refs->>'agent' = 'reviewer'"), "no budget alert"
     assert calls["writer"] == before, "the Writer worked although its Grader was out of budget"
     queued = db.one(conn, "select count(*) as n from tasks where client_id = %s and kind = 'draft_outreach' and status = 'queued'",
                     (t["client"],))["n"]
     assert queued >= 1, "drafting work should wait in the queue"
-    db.all_rows(conn, "update agents set monthly_budget_cents = 10000 where name = 'grader'")
+    db.all_rows(conn, "update agents set monthly_budget_cents = 10000 where name = 'reviewer'")
     supervisor.tick(conn)
-    assert db.one(conn, "select active from agents where name = 'grader'")["active"], "agent not resumed after budget raised"
+    assert db.one(conn, "select active from agents where name = 'reviewer'")["active"], "agent not resumed after budget raised"
     print("ok: budget cap pauses the team member, work waits, and it resumes when the budget is raised")
 
     # A failing task is retried, then reported.

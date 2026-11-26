@@ -185,3 +185,18 @@ throwaway local database (see the file's header). It checks pacing, rewrites, so
 `TEST_DATABASE_URL=postgresql:///sbm_test python -m tests.test_sends` checks sending and replies with a fake mail
 server: approval only, sending window, gaps, daily cap, held emails, threaded follow-ups, reply sorting,
 unsubscribes on every channel, bounces and refused addresses.
+
+## Daily research quota (agents/quota.py, migration 0008)
+
+The researcher has a fixed daily quota, so it cannot skim: screen `screen_per_day` DENUE companies (default 200) by
+fixed rules at no AI cost, research the best `research_per_day` (default 25), aim for 10–15 drafts. A researched
+account only counts once it passes the completeness gate (at least 3 opened sources behind at least 3 facts, a logged
+attempt to name the buyer, a fit score with reasons, open channels recorded); a failed one is researched again with
+the reasons. A random 10% of passed accounts is re-checked against the cited pages; a skim raises an alert. All
+numbers are in `research_quota_settings`. The dashboard's Research page shows target vs done vs passed and every
+skipped company with its reason.
+
+    python -m agents.quota import "$HOME/SBM PARTNERS/denue/chains.csv"   # once, or when DENUE is refreshed
+    python -m agents.quota screen --client "Santa Fe Rústicos" --campaign <campaign id>   # each morning
+    python -m agents.team run                                         # research, scoring, drafts (as before)
+    python -m agents.quota spot-check                                 # end of day

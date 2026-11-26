@@ -75,7 +75,7 @@ export async function addSuppression(form: FormData) {
   revalidatePath("/sending");
 }
 
-/** You sent a LinkedIn note by hand: record it. Or skip it. */
+/** You sent a LinkedIn note or a WhatsApp message by hand: record it. Or skip it. */
 export async function markLinkedIn(form: FormData) {
   const me = await requireStaff();
   const id = str(form, "id");
@@ -83,19 +83,21 @@ export async function markLinkedIn(form: FormData) {
     await sql`update outreach_drafts set status = 'cancelled', review_note = ${"Skipped by " + me.name} where id = ${id} and status = 'approved'`;
   } else {
     await gate(sql.begin(async (tx) => {
-      const [d] = await tx<{ client_id: string; campaign_id: string | null; company_id: string | null; contact_id: string; body: string }[]>`
+      const [d] = await tx<{ client_id: string; campaign_id: string | null; company_id: string | null; contact_id: string; body: string;
+        channel: string }[]>`
         update outreach_drafts set status = 'sent', sent_at = now(), sent_by = ${me.email}
-         where id = ${id} and status = 'approved' and channel = 'linkedin'
-        returning client_id, campaign_id, company_id, contact_id, body`;
+         where id = ${id} and status = 'approved' and channel::text in ('linkedin', 'whatsapp')
+        returning client_id, campaign_id, company_id, contact_id, body, channel::text as channel`;
       if (!d) return;
       await tx`insert into interactions (client_id, campaign_id, company_id, contact_id, channel, direction, kind, actor, body, metadata)
-               values (${d.client_id}, ${d.campaign_id}, ${d.company_id}, ${d.contact_id}, 'linkedin', 'outbound', 'sent', 'staff',
+               values (${d.client_id}, ${d.campaign_id}, ${d.company_id}, ${d.contact_id}, ${d.channel}::channel, 'outbound', 'sent', 'staff',
                        ${d.body}, ${sql.json({ draft_id: id, sent_by: me.email })})`;
       if (d.campaign_id) await tx`update campaign_targets set status = 'contacted', updated_at = now()
                                   where campaign_id = ${d.campaign_id} and contact_id = ${d.contact_id} and status = 'queued'`;
     }));
   }
   revalidatePath("/linkedin");
+  revalidatePath("/");
 }
 
 /** Confirm a country's email rule after the lawyer check, change it, or withdraw the confirmation. */
@@ -235,7 +237,7 @@ export async function logReply(form: FormData) {
   const channel = str(form, "channel");
   const category = str(form, "category");
   const summary = str(form, "summary");
-  if (!["linkedin", "call", "email", "other"].includes(channel)) throw new Error("Unknown channel");
+  if (!["linkedin", "whatsapp", "call", "email", "other"].includes(channel)) throw new Error("Unknown channel");
   if (!REPLY_CATEGORIES.includes(category)) throw new Error("Choose what the buyer said");
   if (!summary) throw new Error("Write a line about what they said");
   const [i] = await sql<{ id: string }[]>`

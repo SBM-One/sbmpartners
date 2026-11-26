@@ -82,7 +82,7 @@ def draft(c, files: List[pathlib.Path], website: Optional[str], usage: Usage, mo
         msgs = [{"role": "user", "content": [*content, {"type": "text", "text":
                  f"Read the client's website {website} (home, about, collections, trade/wholesale pages) and write "
                  "notes of every concrete fact about the brand, each with the URL it came from."}]}]
-        tools = [{"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 8, "allowed_domains": [_domain(website)]}]
+        tools = [{"type": "web_fetch_20250910", "name": "web_fetch", "max_uses": 8, "allowed_domains": [_domain(website)]}]
         for _ in range(4):
             with c.beta.messages.stream(model=model, max_tokens=32000, system=SYSTEM, messages=msgs, tools=tools,
                                         output_config={"effort": "medium"}, betas=[FALLBACK_BETA], fallbacks="default") as s:
@@ -146,18 +146,18 @@ def main(argv=None) -> None:
                      (args.client,))
     if not row:
         raise SystemExit(f"No client named {args.client!r}. Check the name, or add --create.")
-    if not db.can_work(conn, "onboarder"):
+    if not db.can_work(conn, "researcher"):
         raise SystemExit("The Onboarder is paused or out of budget this month (dashboard: Today).")
 
     usage = Usage()
-    model = db.TEAM["onboarder"][1]
+    model = db.TEAM["researcher"][1]
     print(f"Reading {len(files)} file(s){' and the website' if args.website else ''} with {model}…")
     try:
         fs = draft(client(), files, args.website, usage, model)
     except Exception:
-        db.record_run(conn, "onboarder", usage, f"fact sheet for {args.client}: failed", ok=False)
+        db.record_run(conn, "researcher", usage, f"fact sheet for {args.client}: failed", ok=False)
         raise
-    db.record_run(conn, "onboarder", usage, f"fact sheet draft for {args.client}")
+    db.record_run(conn, "researcher", usage, f"fact sheet draft for {args.client}")
     source = ", ".join([f.name for f in files] + ([args.website] if args.website else []))
     sheet = {**fs.model_dump(), "_note": "Drafted by the Onboarder from the client's own material. Approved fact sheets only."}
     db.all_rows(conn, "update clients set brief_draft = %s, brief_source = %s where id = %s",

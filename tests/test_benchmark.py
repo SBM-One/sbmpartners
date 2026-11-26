@@ -41,6 +41,10 @@ def fake_ai():
                 reason="Because.", pitch_angle="Dining for a new store.", lead_with=["Dining"], proof_points=["30 containers a month"],
                 offer=None, objections=[strategy.Objection(objection="Minimums", answer="One trailer, 20 pieces per model")],
                 first_ask="A call?", channel_plan="email_and_linkedin", channel_reason="Allowed.")
+        elif fmt is team.ChannelPlan:
+            out = team.ChannelPlan(steps=[team.PlanStep(day=0, channel="email", purpose="first email"),
+                                          team.PlanStep(day=0, channel="linkedin", purpose="connection note"),
+                                          team.PlanStep(day=6, channel="whatsapp", purpose="WhatsApp")], why="x")
         elif fmt is WriterTurn:
             first = re.search(r"Buyer: (\w+)", text).group(1)
             msg = f"Hi {first}, short note from Santa Fe Rústicos: dining from $80 wholesale. Worth a call?\n\nYago"
@@ -118,7 +122,7 @@ def main():
     assert B.unsupported_numbers("Dining from $45, 40% margin, 25 stores", "prices $80 to $390") == ["$45", "25", "40%"]
     assert B.unsupported_numbers("$120 tables, 20 pieces per model", "20 pieces") == []
     md = B.report(res)
-    assert "| Strategist |" in md and "## Grader: planted drafts" in md
+    assert "| Researcher: fit score and pitch |" in md and "## Grader: planted drafts" in md
     print(f"ok: report written ({len(md.splitlines())} lines); fake cost ${res['cost_usd']}")
     print("All benchmark tests passed.")
 
