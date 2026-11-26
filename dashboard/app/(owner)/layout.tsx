@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import NavLink from "@/components/NavLink";
+import LedgerLabels from "@/components/LedgerLabels";
 
 export const metadata: Metadata = { title: "SBM Partners · Control room" };
 
@@ -36,11 +37,12 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
           </nav>
         </div>
         <form action="/auth/signout" method="post" className="who">
-          <span className="muted">{staff.name}</span>
+          <span className="muted staff-name">{staff.name}</span>
           <button className="signout">Sign out</button>
         </form>
       </header>
       <main>{children}</main>
+      <LedgerLabels />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
 import { sql } from "@/lib/db";
-import { ago, day, label, money, num, sentence, today, usd } from "@/lib/format";
+import { TZ, ago, clock, day, label, money, num, sentence, today, usd } from "@/lib/format";
 import { updateAgent, updateAlert } from "../actions";
 import AutoRefresh from "@/components/AutoRefresh";
 import Submit from "@/components/Submit";
@@ -15,6 +15,21 @@ type Client = { id: string; name: string; ordered: number; won: number; in_play:
   waiting: number; last_at: Date | null };
 type Agent = { agent_id: string; name: string; role: string; active: boolean; paused_reason: string | null;
   spent_usd: number; budget_usd: number; pct_used: number | null };
+
+type Work = { kind: string; done: number; running: number; queued: number; failed: number };
+type Done = { id: string; kind: string; status: string; finished_at: Date; yesterday: boolean; company: string | null; contact: string; client: string | null;
+  error: string | null };
+
+/** Who does each kind of task, and how one finished task reads in a sentence. */
+const TASK_WORDS: Record<string, { agent: string; one: string; many: string; did: string }> = {
+  research_prospect: { agent: "Prospect researcher", one: "buyer looked up", many: "buyers looked up", did: "Looked up" },
+  qualify_prospect: { agent: "Strategist", one: "buyer scored and planned", many: "buyers scored and planned", did: "Scored and planned" },
+  draft_outreach: { agent: "Writer", one: "first message drafted", many: "first messages drafted", did: "Drafted a first message to" },
+  draft_reply: { agent: "Writer", one: "answer to a reply drafted", many: "answers to replies drafted", did: "Drafted an answer to" },
+  prepare_handoff: { agent: "Meeting briefer", one: "meeting brief prepared", many: "meeting briefs prepared", did: "Prepared a meeting brief on" },
+  write_report: { agent: "Reporter", one: "weekly letter written", many: "weekly letters written", did: "Wrote the weekly letter for" },
+};
+const words = (kind: string) => TASK_WORDS[kind] ?? { agent: sentence(kind), one: "task done", many: "tasks done", did: sentence(kind) };
 
 const AGENT_JOBS: Record<string, string> = {
   supervisor: "Hands out work, paces outreach, watches budgets",
@@ -38,7 +53,7 @@ const spell = (n: number, lower = false) => {
 /** Today: what needs the owner, how each client is doing, and what the agent team is costing. */
 export default async function Today() {
   await requireStaff();
-  const [[k], drafts, letters, alerts, clients, agents] = await Promise.all([
+  const [[k], drafts, letters, alerts, clients, agents, work, done] = await Promise.all([
     sql<Totals[]>`
       select (select count(*)::int from outreach_drafts where status = 'pending_review') as waiting,
              (select count(*)::int from reports where status = 'draft') as reports,
@@ -75,7 +90,28 @@ export default async function Today() {
         (select max(occurred_at) from interactions i where i.client_id = c.id and i.kind <> 'sent') as last_at
       from clients c where c.status <> 'churned' order by c.status = 'active' desc, c.name`,
     sql<Agent[]>`select * from v_agent_spend_month order by budget_usd desc, name`,
+    // Today's work, counted from midnight in the owner's time zone.
+    sql<Work[]>`
+      with midnight as (select (date_trunc('day', now() at time zone ${TZ}) at time zone ${TZ}) as t)
+      select kind,
+             count(*) filter (where status = 'done' and finished_at >= (select t from midnight))::int as done,
+             count(*) filter (where status = 'running')::int as running,
+             count(*) filter (where status = 'queued')::int as queued,
+             count(*) filter (where status = 'failed' and finished_at >= (select t from midnight))::int as failed
+      from tasks group by kind`,
+    sql<Done[]>`
+      select t.id, t.kind, t.status::text, t.finished_at, co.name as company, t.error,
+             t.finished_at < (date_trunc('day', now() at time zone ${TZ}) at time zone ${TZ}) as yesterday,
+             trim(coalesce(c.first_name, '') || ' ' || coalesce(c.last_name, '')) as contact, cl.name as client
+      from tasks t left join companies co on co.id = t.company_id left join contacts c on c.id = t.contact_id
+      left join clients cl on cl.id = t.client_id
+      where t.status in ('done', 'failed') and t.finished_at > now() - interval '24 hours'
+      order by t.finished_at desc limit 8`,
   ]);
+
+  const kinds = Object.keys(TASK_WORDS).filter((kind) => work.some((w) => w.kind === kind))
+    .concat(work.map((w) => w.kind).filter((kind) => !TASK_WORDS[kind]));
+  const doneToday = work.reduce((n, w) => n + w.done, 0);
 
   const urgent = alerts.filter((a) => a.severity === "urgent").length;
   const owed = [
@@ -152,6 +188,46 @@ export default async function Today() {
       </section>
 
       <section className="section">
+        <div className="sh"><h2>Done today<span className="count">{num(doneToday)}</span></h2><span className="aside">Since midnight</span></div>
+        {kinds.length === 0 ? <p className="empty">The agents haven&apos;t started yet. Their work shows here as it finishes.</p> : (
+          <table className="ledger work">
+            <thead><tr><th>Agent</th><th className="num">Done today</th><th className="num">Working now</th><th className="num">In line</th><th className="num">Failed</th></tr></thead>
+            <tbody>
+              {kinds.map((kind) => {
+                const w = work.find((x) => x.kind === kind)!;
+                const t = words(kind);
+                return (
+                  <tr key={kind}>
+                    <td><div className="name">{t.agent}</div><div className="sub">{w.done ? `${num(w.done)} ${w.done === 1 ? t.one : t.many}` : w.running ? "Working on it now" : "Nothing finished yet today"}</div></td>
+                    <td className="num" data-label="Done today" style={{ paddingTop: 20 }}>{w.done ? num(w.done) : <span className="faint">–</span>}</td>
+                    <td className="num" data-label="Working now" style={{ paddingTop: 20 }}>{w.running ? num(w.running) : <span className="faint">–</span>}</td>
+                    <td className="num" data-label="In line" style={{ paddingTop: 20 }}>{w.queued ? num(w.queued) : <span className="faint">–</span>}</td>
+                    <td className="num" data-label="Failed" style={{ paddingTop: 20 }}>{w.failed ? <span className="alarm">{num(w.failed)}</span> : <span className="faint">–</span>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+        {done.length > 0 && (
+          <table className="ledger latest">
+            <tbody>
+              {done.map((d) => {
+                const who = d.company || d.contact || d.client;
+                return (
+                  <tr key={d.id}>
+                    <td className="lead">{clock(d.finished_at)}{d.yesterday && <div className="faint">Yesterday</div>}</td>
+                    <td><div className={d.status === "failed" ? "alarm" : ""}>{d.status === "failed" ? `Failed: ${words(d.kind).did.toLowerCase()}` : words(d.kind).did}{who ? ` ${who}` : ""}.</div>
+                      <div className="sub">{words(d.kind).agent}{d.client ? `, for ${d.client}` : ""}{d.status === "failed" && d.error ? `. ${d.error.slice(0, 140)}` : ""}</div></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="section">
         <div className="sh"><h2>Clients<span className="count">{clients.length}</span></h2><Link className="aside" href="/clients">Settings for each client</Link></div>
         <div className="scroll">
           <table className="ledger">
@@ -161,11 +237,11 @@ export default async function Today() {
               {clients.map((c) => (
                 <tr key={c.id}>
                   <td><div className="name">{c.name}</div>{c.waiting > 0 && <div className="sub">{num(c.waiting)} draft{c.waiting === 1 ? "" : "s"} waiting</div>}</td>
-                  <td className="num" style={{ paddingTop: 20 }}>{c.ordered ? money(c.ordered) : <span className="faint">–</span>}</td>
-                  <td className="num won" style={{ paddingTop: 20 }}>{c.won ? money(c.won) : <span className="faint">–</span>}</td>
-                  <td className="num" style={{ paddingTop: 20 }}>{num(c.in_play)}{c.deciding > 0 && <div className="sub">{money(c.deciding)}</div>}</td>
-                  <td className="num" style={{ paddingTop: 20 }}>{num(c.replies)}</td>
-                  <td className="small" style={{ paddingTop: 21 }}>{ago(c.last_at)}</td>
+                  <td className="num" data-label="Ordered, 30 days" style={{ paddingTop: 20 }}>{c.ordered ? money(c.ordered) : <span className="faint">–</span>}</td>
+                  <td className="num won" data-label="Won so far" style={{ paddingTop: 20 }}>{c.won ? money(c.won) : <span className="faint">–</span>}</td>
+                  <td className="num" data-label="Buyers deciding" style={{ paddingTop: 20 }}>{num(c.in_play)}{c.deciding > 0 && <div className="sub">{money(c.deciding)}</div>}</td>
+                  <td className="num" data-label="Replies, 30 days" style={{ paddingTop: 20 }}>{num(c.replies)}</td>
+                  <td className="small" data-label="Last buyer activity" style={{ paddingTop: 21 }}>{ago(c.last_at)}</td>
                   <td className="num" style={{ paddingTop: 20 }}><Link className="go" href={`/portal?client=${c.id}`}>Their page</Link></td>
                 </tr>
               ))}
@@ -185,13 +261,13 @@ export default async function Today() {
                 return (
                   <tr key={a.agent_id}>
                     <td><div className="name">{AGENT_NAMES[a.name] ?? sentence(a.name)}</div><div className="sub">{AGENT_JOBS[a.name] ?? label(a.role)}</div></td>
-                    <td className="small" style={{ paddingTop: 21 }}>{a.active ? "Working" : <span className="alarm">Paused</span>}
+                    <td className="small" data-label="Status" style={{ paddingTop: 21 }}>{a.active ? "Working" : <span className="alarm">Paused</span>}
                       {!a.active && a.paused_reason && <div className="muted">{sentence(a.paused_reason)}</div>}</td>
-                    <td className="num" style={{ paddingTop: 20 }}>
+                    <td className="num" data-label="Spent this month" style={{ paddingTop: 20 }}>
                       {a.budget_usd === 0 ? <span className="faint">No AI cost</span> : <span className={over ? "alarm" : ""}>{usd(a.spent_usd)}</span>}
                       {a.budget_usd > 0 && <div className="sub">{Math.round(a.pct_used ?? 0)}% of budget</div>}
                     </td>
-                    <td className="num" style={{ paddingTop: 16 }}>
+                    <td className="num" data-label="Monthly budget" style={{ paddingTop: 16 }}>
                       {a.name === "supervisor" ? <span className="faint small">Rules only</span> : (
                         <form action={updateAgent} className="inline">
                           <input type="hidden" name="id" value={a.agent_id} />
