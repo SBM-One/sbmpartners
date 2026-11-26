@@ -130,7 +130,7 @@ def main():
         chans = {d["channel"]: d["draft_id"] for d in out["drafts"]}
         assert set(chans) == {"email", "linkedin"}, out
     li = db.one(conn, "select * from outreach_drafts where id = %s", (chans["linkedin"],))
-    assert li["channel"] == "linkedin" and len(li["body"]) <= 300 and li["status"] == "pending_review"
+    assert li["channel"] == "linkedin" and len(li["body"]) <= 200 and li["status"] == "pending_review"
     print("ok: each buyer gets an email draft and a short LinkedIn note, both waiting for approval")
 
     drafts = db.all_rows(conn, "select * from outreach_drafts where client_id = %s and channel = 'email' order by created_at",
