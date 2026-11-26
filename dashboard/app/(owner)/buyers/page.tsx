@@ -10,6 +10,7 @@ type Row = {
   company: string | null; buyer_type: string | null; country: string | null; stage: string;
   strategy_id: string | null; fit_score: number | null; decision: string | null; decided_by: string | null;
   decision_reason: string | null; pitch_angle: string | null; channel_plan: string | null;
+  channel_sequence: { steps: { day: number; channel: string; purpose: string }[]; why: string } | null;
   lead_with: string[] | null; proof_points: string[] | null; offer: string | null; first_ask: string | null;
   channel_reason: string | null; objections: { objection: string; answer: string }[] | null;
   fit_breakdown: { key: string; score: number; weight: number; why: string }[] | null;
@@ -55,7 +56,8 @@ const VIEWS: { key: string; name: string; stages: string[] | null }[] = [
 
 const CRITERIA: Record<string, string> = { product_fit: "Product fit", buyer_type_fit: "Kind of buyer", price_fit: "Price level",
   authority: "Decision maker", timing: "Timing" };
-const PLAN: Record<string, string> = { email: "Email", email_and_linkedin: "Email and a LinkedIn note", linkedin: "LinkedIn only" };
+const PLAN: Record<string, string> = { email: "Email", email_and_linkedin: "Email and a LinkedIn note", linkedin: "LinkedIn only",
+  whatsapp: "WhatsApp only" };
 
 /** Every buyer in every live campaign: the Strategist's call, where the conversation stands, and what happens next. */
 export default async function Buyers({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
@@ -63,7 +65,7 @@ export default async function Buyers({ searchParams }: { searchParams: Promise<{
   const { view = "you" } = await searchParams;
   const v = VIEWS.find((x) => x.key === view) ?? VIEWS[0];
   const rows = await sql<Row[]>`
-    select v.*, ps.lead_with, ps.proof_points, ps.offer, ps.first_ask, ps.channel_reason, ps.objections, ps.fit_breakdown,
+    select v.*, ps.lead_with, ps.proof_points, ps.offer, ps.first_ask, ps.channel_reason, ps.objections, ps.fit_breakdown, ps.channel_sequence,
            exists (select 1 from tasks t where t.kind = 'prepare_handoff' and t.contact_id = v.contact_id
                    and t.client_id = v.client_id and t.status in ('queued','running')) as brief_requested
     from v_conversations v
@@ -153,6 +155,8 @@ export default async function Buyers({ searchParams }: { searchParams: Promise<{
                                   {r.objections!.map((o, j) => <li key={j}>{o.objection}: <span className="muted">{o.answer}</span></li>)}</ul></div>
                               )}
                               {r.channel_plan && <div><h4>Channel</h4><p>{PLAN[r.channel_plan] ?? r.channel_plan}. {r.channel_reason}</p></div>}
+                              {r.channel_sequence?.steps?.length ? <div><h4>Writer&apos;s plan</h4><p>{r.channel_sequence.steps.map((s) =>
+                                `Day ${s.day}: ${s.channel === "whatsapp" ? "WhatsApp" : s.channel === "linkedin" ? "LinkedIn" : "email"} (${s.purpose})`).join(" · ")}</p></div> : null}
                               {r.messages_sent === 0 && (
                                 <form action={setStrategyDecision} className="inline" style={{ flexWrap: "wrap", marginTop: 6 }}>
                                   <input type="hidden" name="id" value={r.strategy_id} />
@@ -173,7 +177,7 @@ export default async function Buyers({ searchParams }: { searchParams: Promise<{
                                 <input type="hidden" name="contact_id" value={r.contact_id} />
                                 <div className="inline" style={{ flexWrap: "wrap" }}>
                                   <label className="field"><span>Where</span>
-                                    <select name="channel" defaultValue="linkedin"><option value="linkedin">LinkedIn</option><option value="call">Phone call</option>
+                                    <select name="channel" defaultValue="linkedin"><option value="linkedin">LinkedIn</option><option value="whatsapp">WhatsApp</option><option value="call">Phone call</option>
                                       <option value="other">Other</option></select></label>
                                   <label className="field"><span>What they said</span>
                                     <select name="category" defaultValue="interested">

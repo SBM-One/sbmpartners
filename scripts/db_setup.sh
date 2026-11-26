@@ -37,6 +37,8 @@ installed() {
     0004_client_portal.sql)    check="select to_regclass('public.v_portal_pipeline') is not null" ;;
     0005_first_sends.sql)      check="select to_regclass('public.mailboxes') is not null" ;;
     0006_qualify_and_handoff.sql) check="select to_regclass('public.meeting_handoffs') is not null" ;;
+    0007_three_agents.sql)     check="select to_regclass('public.v_manual_sends') is not null" ;;
+    0008_research_quota.sql)   check="select to_regclass('public.research_checks') is not null" ;;
     *) echo "No install check for $1; add one to scripts/db_setup.sh." >&2; exit 1 ;;
   esac
   [[ "$(psql "$DATABASE_URL" -X -tAc "$check")" == "t" ]]

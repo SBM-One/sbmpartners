@@ -1,0 +1,38 @@
+{
+ "_note": "The 29 Mexican accounts loaded in Supabase on 2026-11-23 (companies, country = MX), exported 2026-11-26. Fields: name, domain, type, categories, price_tier, hq_city, hq_state, website. Only the two intake inboxes below are real addresses; no named buyers were collected.",
+ "inboxes": {
+  "homedepot.com.mx": {"email": "relaciones_publicas@homedepot.com.mx", "title": "Atención a proveedores (supplier support inbox)", "source": "their website: https://www.homedepot.com.mx/proveedores-mercancias"},
+  "walmartmexico.com": {"email": "wmgssmxp@wal-mart.com", "title": "Supplier email (Walmart de México)", "source": "their website: https://www.walmartmexico.com/proveedores/como-aplicar"}
+ },
+ "buyers": [
+["Angelópolis Lifestyle Center (Puebla)",null,"other",[],null,"Puebla","PUE",null],
+["Ashley Furniture (Mexico franchise stores)",null,"dealer",["bedroom","dining","sofas"],"mid","Monterrey area","NL",null],
+["Coppel","coppel.com","retailer",["bedroom","dining","loveseats","modulars","sala sets","sectionals","sofas","wardrobes"],"value","Culiacán","SIN","https://coppel.com"],
+["Costco México","costco.com.mx","retailer",["bars","consoles","dining sets","sala sets","sectionals","sofas"],"mid","Mexico City (to verify)","CDMX","https://costco.com.mx"],
+["El Palacio de Hierro (incl. Casa Palacio)","elpalaciodehierro.com","retailer",["bedroom","dining","luxury","sofas"],"luxury","Mexico City","CDMX","https://elpalaciodehierro.com"],
+["El Puerto de Liverpool (Liverpool, Suburbia)","liverpool.com.mx","retailer",["bedroom","case goods","dining","occasional","sala sets","sectionals","sofas"],"upper","Mexico City","CDMX","https://liverpool.com.mx"],
+["Fibra Danhos","danhos.mx","other",[],null,"Mexico City","CDMX","https://danhos.mx"],
+["FIBRA SOMA (Antara, Artz Pedregal)",null,"other",[],null,"Mexico City","CDMX",null],
+["Fibra Uno (FUNO)","funo.mx","other",[],null,"Mexico City","CDMX","https://funo.mx"],
+["Foly Muebles","foly.com.mx","retailer",["bedroom","dining","sofas"],"value","Ciudad Victoria","TAM","https://foly.com.mx"],
+["GAIA Design","gaiadesign.com.mx","retailer",["bedroom","decor","dining","occasional","sofas"],"mid","Mexico City","CDMX","https://gaiadesign.com.mx"],
+["Grupo Comercial Chedraui","grupochedraui.com.mx","retailer",["RTA"],"value","Xalapa","VER","https://grupochedraui.com.mx"],
+["Grupo Elektra (Elektra)","elektra.com.mx","retailer",["bedroom","mattresses","sofas","wardrobes"],"value","Mexico City","CDMX","https://elektra.com.mx"],
+["Grupo GICSA","gicsa.com.mx","other",[],null,"Mexico City","CDMX","https://gicsa.com.mx"],
+["Grupo Posadas (Fiesta Americana, Live Aqua, Gamma, etc.)","posadas.com","hospitality",["hotel guestroom","hotel guestroom case goods","lobby","outdoor"],"mid","Mexico City","CDMX","https://posadas.com"],
+["Grupo Sanborns (Sears México, Sanborns)","sears.com.mx","retailer",["bedroom","dining","entertainment centers","recliners","rustic","sofa beds","sofas","wardrobes","wrought iron"],"mid","Mexico City","CDMX","https://sears.com.mx"],
+["Grupo Vazol (Camino Real hotels)","grupovazol.com","hospitality",["guestroom case goods","hotel guestroom","lobby"],"upper","Mexico City","CDMX","https://grupovazol.com"],
+["Grupo Vidanta","grupovidanta.com","hospitality",["guestroom case goods","outdoor","resort furniture"],"upper","Mexico City","CDMX","https://grupovidanta.com"],
+["Grupo Xcaret","grupoxcaret.com","hospitality",["guestroom","guestroom case goods","lobby","outdoor","resort furniture","rustic"],"upper","Playa del Carmen","QROO","https://grupoxcaret.com"],
+["IKEA México","ikea.com","retailer",["all furniture"],"value","Mexico City (to verify)","CDMX","https://ikea.com"],
+["Inmuebles Carso / Grupo Caabsa / Pulso Inmobiliario",null,"other",[],null,"Mexico City","CDMX",null],
+["Liverpool Galerías (mall division)",null,"other",[],null,"Mexico City","CDMX",null],
+["Marriott International (Mexico)","marriott.com","hospitality",["hotel guestroom","hotel guestroom case goods","lobby"],"upper","Bethesda, MD (US)",null,"https://marriott.com"],
+["Móbica","mobica.com.mx","retailer",["bedroom","dining","modulars","occasional","office","sofa beds","sofas"],"upper","Mexico City (to verify)","CDMX","https://mobica.com.mx"],
+["Muebles Dico","dico.com.mx","retailer",["bedroom","dining","entertainment centers","mattresses","recliners","sectionals","sofas"],"mid","Mexico City (to verify)","CDMX","https://dico.com.mx"],
+["Organización Soriana","soriana.com","retailer",["RTA"],"value","Monterrey","NL","https://soriana.com"],
+["Placencia Muebles","placencia.com.mx","retailer",["bedroom","dining","sofas"],"mid","León (to verify)","GTO","https://placencia.com.mx"],
+["The Home Depot México","homedepot.com.mx","retailer",["closets","consoles","dining","outdoor","RTA","storage"],"value","Monterrey (to verify)","NL","https://homedepot.com.mx"],
+["Walmart de México (Walmart, Sam's Club, Bodega Aurrera, marketplace)","walmartmexico.com","retailer",["bedroom","dining sets","recliners","RTA","sectionals","sofa beds"],"value","Mexico City","CDMX","https://walmartmexico.com"]
+ ]
+}

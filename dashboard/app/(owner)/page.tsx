@@ -18,13 +18,9 @@ type Agent = { agent_id: string; name: string; role: string; active: boolean; pa
 
 const AGENT_JOBS: Record<string, string> = {
   supervisor: "Hands out work, paces outreach, watches budgets",
-  "prospect-researcher": "Looks up each buyer before outreach",
-  strategist: "Scores each buyer's fit and plans the pitch and channel",
-  "meeting-briefer": "Turns interested buyers into meeting briefs",
-  writer: "Drafts outreach, follow-ups and answers from the approved playbook",
-  grader: "Scores every draft from 0 to 100",
-  reporter: "Writes the weekly letters to clients",
-  researcher: "Builds the sales playbook from research",
+  researcher: "Researches each buyer on the web, scores the fit and plans the pitch",
+  writer: "Plans each buyer's channels and writes every message, meeting brief and weekly letter",
+  reviewer: "Grades every message and runs the safety checks; sorts replies",
   mock_buyer: "Plays buyers in practice rounds",
 };
 const AGENT_NAMES: Record<string, string> = { "prospect-researcher": "Prospect researcher", mock_buyer: "Practice buyer",

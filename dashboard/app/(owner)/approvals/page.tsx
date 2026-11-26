@@ -122,13 +122,14 @@ export default async function Approvals() {
                 <input type="hidden" name="id" value={d.id} />
                 {d.channel === "email" && !(["reply", "check_in"].includes(d.purpose) && !d.subject) && <label className="field subject"><span>Subject</span><input name="subject" defaultValue={d.subject ?? ""} /></label>}
                 <label className="field body"><span>{d.channel === "linkedin" ? (d.purpose === "first" ? `LinkedIn note (${d.body.length} of 300 characters)` : "LinkedIn message, sent by you by hand") :
+                  d.channel === "whatsapp" ? `WhatsApp message, sent by you by hand (${d.body.length} of 600 characters)` :
                   d.purpose === "reply" ? "Our answer, sent in their thread" : d.purpose === "check_in" ? "Check-in, sent in their thread" :
                   d.step > 1 ? "Follow-up, sent as a reply in the same email thread" : "Message"}</span><textarea name="body" defaultValue={d.body} /></label>
                 {d.channel === "email" && <p className="small muted">The sender&apos;s name, postal address and an unsubscribe link are added under the email.</p>}
                 <label className="field"><span>Note for the team, if any</span><input name="note" placeholder="Why you approved, changed or rejected it" /></label>
                 <div className="acts">
                   <Submit name="decision" value="approved" className="solid" disabled={d.blockers.length > 0}>
-                    {d.channel === "email" ? "Approve and send" : d.channel === "linkedin" ? "Approve for LinkedIn" : "Approve"}</Submit>
+                    {d.channel === "email" ? "Approve and send" : d.channel === "linkedin" ? "Approve for LinkedIn" : d.channel === "whatsapp" ? "Approve for WhatsApp" : "Approve"}</Submit>
                   <Submit name="decision" value="rejected" className="textbtn alarm">Reject</Submit>
                   {d.website && <a className="textbtn quiet" href={d.website} target="_blank" rel="noreferrer noopener">Their website</a>}
                 </div>

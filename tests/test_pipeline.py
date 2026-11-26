@@ -37,6 +37,9 @@ def fake_ai(plan: dict, seen: dict):
         if fmt is strategy.Strategy:
             name = text.split("Buyer: ")[1].split(",")[0]
             out = plan[name]
+        elif fmt is team.ChannelPlan:
+            out = team.ChannelPlan(steps=[team.PlanStep(day=0, channel='email', purpose='first email'),
+                                          team.PlanStep(day=0, channel='linkedin', purpose='note')], why='x')
         elif fmt is WriterTurn:
             if "LinkedIn connection note" in text:
                 out = WriterTurn(subject=None, message="Hi, I work with oak makers.", playbook_used=[])

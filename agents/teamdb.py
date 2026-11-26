@@ -8,23 +8,36 @@ import json
 import os
 from typing import Any, Iterable, Optional
 
+# The team is three AI agents, plus the Supervisor (fixed rules, no AI):
+#   researcher  researches each buyer on the web AND scores the fit (pursue / nurture / disqualify); also drafts a
+#               client's fact sheet from their catalog
+#   writer      plans each buyer's channels (email, LinkedIn note, WhatsApp) and writes every message: first messages,
+#               follow-ups, answers, check-ins; also meeting briefs and weekly reports
+#   reviewer    grades every message and runs the safety checks (confidential customers, invented numbers, the
+#               send rules); also sorts buyers' replies
 # Agent name -> (role, default model, monthly budget in cents). Budgets can be changed later in
 # Supabase (Table Editor -> agents -> monthly_budget_cents); restarting the team never resets them.
+_OPUS = os.environ.get("SBM_MODEL", "claude-opus-5-5")
 TEAM = {
     "supervisor": ("supervisor", "rules (no AI)", 0),
-    "prospect-researcher": ("prospect_researcher", os.environ.get("SBM_PROSPECT_MODEL", "claude-sonnet-5-5"), 5000),
-    "strategist": ("strategist", os.environ.get("SBM_STRATEGIST_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 5000),
-    "writer": ("writer", os.environ.get("SBM_WRITER_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 10000),
-    "grader": ("grader", os.environ.get("SBM_GRADER_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 10000),
-    "reporter": ("reporter", os.environ.get("SBM_REPORTER_MODEL", "claude-sonnet-5-5"), 2000),
-    "onboarder": ("onboarder", os.environ.get("SBM_ONBOARD_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 2000),
-    "reply-sorter": ("reply_sorter", os.environ.get("SBM_REPLY_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 1000),
-    "meeting-briefer": ("meeting_briefer", os.environ.get("SBM_BRIEFER_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 2000),
+    "researcher": ("researcher", os.environ.get("SBM_RESEARCHER_MODEL", _OPUS), 10000),
+    "writer": ("writer", os.environ.get("SBM_WRITER_MODEL", _OPUS), 15000),
+    "reviewer": ("grader", os.environ.get("SBM_REVIEWER_MODEL", _OPUS), 10000),
 }
+# The web look-up is the bulk of the researcher's tokens, so it runs on a cheaper model; the scoring uses TEAM's.
+WEB_MODEL = os.environ.get("SBM_PROSPECT_MODEL", "claude-sonnet-5-5")
+# Before the team was trimmed to three (2026-11-26) it had more agents. Their past runs stay in agent_runs under
+# the old names; any code or note still using an old name is pointed at the agent that does that work now.
+FORMER = {"prospect-researcher": "researcher", "strategist": "researcher", "onboarder": "researcher",
+          "grader": "reviewer", "reply-sorter": "reviewer", "meeting-briefer": "writer", "reporter": "writer"}
 
 # Which agent does which kind of task.
-KIND_AGENT = {"research_prospect": "prospect-researcher", "qualify_prospect": "strategist", "draft_outreach": "writer",
-              "draft_reply": "writer", "prepare_handoff": "meeting-briefer", "write_report": "reporter"}
+KIND_AGENT = {"research_prospect": "researcher", "qualify_prospect": "researcher", "draft_outreach": "writer",
+              "draft_reply": "writer", "prepare_handoff": "writer", "write_report": "writer"}
+
+
+def name_of(agent_name: str) -> str:
+    return FORMER.get(agent_name, agent_name)
 
 
 def connect(url: Optional[str] = None):
@@ -70,16 +83,16 @@ def register_team(conn) -> dict[str, dict]:
 
 
 def agent(conn, name: str) -> dict:
-    return one(conn, "select * from agents where name = %s", (name,))
+    return one(conn, "select * from agents where name = %s", (name_of(name),))
 
 
 def spend(conn, name: str) -> dict:
     """This month's spend for one agent: spent_usd, budget_usd, pct_used, active."""
-    return one(conn, "select * from v_agent_spend_month where name = %s", (name,))
+    return one(conn, "select * from v_agent_spend_month where name = %s", (name_of(name),))
 
 
 def can_work(conn, name: str) -> bool:
-    a = spend(conn, name)
+    a = spend(conn, name_of(name))
     return bool(a and a["active"] and a["spent_usd"] < a["budget_usd"])
 
 
@@ -88,7 +101,7 @@ def record_run(conn, agent_name: str, usage, summary: str, ok: bool = True) -> s
               "insert into agent_runs (agent_id, finished_at, status, input_tokens, output_tokens, cost_cents, summary) "
               "select id, now(), %s, %s, %s, %s, %s from agents where name = %s returning id",
               ("ok" if ok else "failed", usage.input_tokens, usage.output_tokens, round(usage.cost_usd * 100, 2),
-               summary[:500], agent_name))
+               summary[:500], name_of(agent_name)))
     return str(row["id"])
 
 
