@@ -258,3 +258,54 @@ details.research a { color: var(--aegean); text-decoration: underline; text-unde
 .quota .fill.part { background: var(--sky); }
 .quota .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
 @media (max-width: 640px) { .quota .row { grid-template-columns: 1fr 90px; } .quota .track { grid-column: 1 / -1; grid-row: 2; } }
+
+/* ---------- today: the agents' work ---------- */
+.ledger.latest { margin-top: 8px; }
+.ledger.latest td { padding-top: 12px; padding-bottom: 12px; }
+.ledger.latest .lead { padding-top: 13px; white-space: nowrap; }
+
+/* ---------- phones ----------
+   The same ledger, re-set for one hand: the menu becomes one line you can swipe, and each table row stacks,
+   the name on its own line and each figure under its column heading. */
+@media (max-width: 640px) {
+  body { font-size: 15px; }
+  .frame { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  .mast { grid-template-columns: 1fr auto; gap: 0 16px; padding: calc(14px + env(safe-area-inset-top)) 0 0;
+    position: sticky; top: 0; z-index: 5; background: var(--porcelain); }
+  .mast-left { display: contents; }
+  .mast .wordmark { grid-column: 1; grid-row: 1; }
+  .mast .who { grid-column: 2; grid-row: 1; }
+  .mast .who .staff-name { display: none; }
+  .mast nav {
+    grid-column: 1 / -1; grid-row: 2; flex-wrap: nowrap; overflow-x: auto; gap: 22px; margin: 12px -24px 0; padding: 0 24px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent);   /* hints there is more to swipe */
+  }
+  .mast nav::-webkit-scrollbar { display: none; }
+  .mast nav a { white-space: nowrap; padding: 6px 0 12px; margin-bottom: 0; }
+
+  .dateline { margin-top: 32px; }
+  .statement { font-size: clamp(32px, 9vw, 40px); line-height: 1.08; }
+  .standfirst { font-size: 16px; margin-top: 18px; }
+  .section { margin-top: 56px; }
+  .sh { grid-template-columns: 1fr; gap: 4px; }
+
+  .scroll { overflow-x: visible; }
+  .ledger thead { display: none; }
+  .ledger, .ledger tbody { display: block; width: 100%; }
+  .ledger tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 22px; padding: 16px 0;
+    border-top: 1px solid var(--rule-soft); }
+  .ledger tr:first-child { border-top: 0; }
+  .ledger td { display: block; padding: 0 !important; border: 0 !important; text-align: left !important; white-space: normal; }
+  .ledger td:empty { display: none; }
+  .ledger td.lead { width: 100%; }
+  .ledger tr > td:first-child:not(.lead), .ledger td.lead + td { flex: 1 1 100%; }
+  .ledger td[data-label]::before { content: attr(data-label); display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 1px; }
+  .ledger td[data-label=""]::before { display: none; }
+  .ledger.latest tr { flex-wrap: nowrap; gap: 14px; padding: 12px 0; }
+  .ledger.latest td.lead { width: auto; flex: 0 0 64px; }
+  .ledger a.go, .textbtn { display: inline-block; padding: 6px 0; }   /* a thumb-sized target */
+  .steps { display: none; }            /* the stage is written under the rule, so the five labels can go */
+  .track { min-width: 0; }
+  .ledger td:has(.track) { flex: 1 1 100%; }
+}

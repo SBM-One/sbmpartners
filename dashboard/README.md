@@ -12,7 +12,7 @@ Instrument Serif, Instrument Sans and Geist). The fonts ship with the app, so no
 
 | Page | What you do there |
 |---|---|
-| Today | What is waiting for you (drafts, letters, new playbook tactics, alerts you can mark seen or resolve), how each client is doing, and each agent's spend, budget and pause switch |
+| Today | What is waiting for you (drafts, letters, new playbook tactics, alerts you can mark seen or resolve), what each agent has done since midnight and is working on now, the latest finished work, how each client is doing, and each agent's spend, budget and pause switch |
 | Drafts | Read and edit each draft, with the research and the Grader's notes underneath, then approve or reject. Nothing is sent without approval, and the safety gate's reasons show above any draft it blocks |
 | Sending | Emails approved and waiting, what was sent and what came back, the mailbox's daily cap and hours, email rules per country (confirm after a lawyer check), and the do-not-contact list |
 | LinkedIn | Approved LinkedIn notes to send by hand, with a link to each profile and an "I sent it" button |
@@ -72,6 +72,31 @@ last line should read "All portal checks passed. Nothing was saved."
 4. Click **Deploy**. You get an address like `sbm-dashboard.vercel.app`. You can connect your own domain later.
 5. In Supabase, go to **Authentication → URL Configuration**. Set **Site URL** to that address, and add
    `https://<that address>/auth/callback` under **Redirect URLs**.
+
+## Your own address (app.sbmpartners.net)
+
+1. In Vercel, open the project → **Settings → Domains**, add `app.sbmpartners.net`.
+2. In Cloudflare, open `sbmpartners.net` → **DNS → Add record**: type `CNAME`, name `app`, target
+   `cname.vercel-dns.com`, proxy status **DNS only** (grey cloud).
+3. In Supabase → **Authentication → URL Configuration**, set **Site URL** to `https://app.sbmpartners.net` and add
+   `https://app.sbmpartners.net/auth/callback` under **Redirect URLs**.
+4. Optional: add `TIME_ZONE` in Vercel (default `America/Mexico_City`). It decides when "today" starts and the
+   times shown on Today.
+
+## On your phone
+
+The control room and the client portal are laid out for phones too: the menu is one line you swipe, and each
+table row stacks, with every figure under its heading. Pages refresh every 30 seconds and the moment you come back
+to them.
+
+To keep it on your home screen like an app, open the address, sign in, then:
+
+- **iPhone (Safari):** Share → **Add to Home Screen**.
+- **Android (Chrome):** menu → **Add to Home screen** (or **Install app**).
+
+It opens full screen with the SBM icon, straight onto Today. Sign-in is the same email link. On an iPhone, open the
+link from the email and sign in once in Safari, then once more inside the home-screen app (they keep separate
+sign-ins).
 
 ## Run it on your computer
 

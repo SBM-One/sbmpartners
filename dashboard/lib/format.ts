@@ -33,10 +33,17 @@ export const dayLong = (d: Date | string) =>
 /** Percent change from `before` to `now`, or null when there is nothing to compare against. */
 export const change = (now: number, before: number) => (before > 0 ? Math.round(((now - before) / before) * 100) : null);
 
+/** The owner's time zone, for "today" and clock times. Set TIME_ZONE in the host's settings to change it. */
+export const TZ = process.env.TIME_ZONE || "America/Mexico_City";
+
+/** A clock time in the owner's time zone: 9:42 AM. */
+export const clock = (d: Date | string) =>
+  new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: TZ });
+
 export function greeting(name: string) {
-  const h = Number(new Date().toLocaleString("en-US", { hour: "numeric", hourCycle: "h23", timeZone: "America/New_York" }));
+  const h = Number(new Date().toLocaleString("en-US", { hour: "numeric", hourCycle: "h23", timeZone: TZ }));
   return `${h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"}, ${name.split(" ")[0]}`;
 }
 
 export const today = () =>
-  new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/New_York" });
+  new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: TZ });
