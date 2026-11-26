@@ -29,6 +29,8 @@ import json
 import os
 import pathlib
 import re
+import ssl
+import subprocess
 import sys
 import time
 import unicodedata
@@ -91,14 +93,27 @@ def chain_key(row: dict) -> str:
     return BRANCH_TAIL.sub("", name).strip() or name
 
 
+def _get(url: str) -> str:
+    """Python's own certificate store first; if this machine's TLS chain isn't in it (common with the
+    python.org installer on macOS, or antivirus that re-signs HTTPS), fall back to curl, which uses the
+    system store."""
+    try:
+        with urllib.request.urlopen(url, timeout=60) as r:
+            return r.read().decode("utf-8", "replace")
+    except urllib.error.URLError as e:
+        if not isinstance(e.reason, ssl.SSLError):
+            raise
+        out = subprocess.run(["curl", "-sS", "--fail", "--max-time", "90", url], capture_output=True, check=True)
+        return out.stdout.decode("utf-8", "replace")
+
+
 def fetch(path: str, tries: int = 4):
     url = f"{API}/{path}"
     for i in range(tries):
         try:
-            with urllib.request.urlopen(url, timeout=60) as r:
-                text = r.read().decode("utf-8", "replace")
+            text = _get(url)
             return json.loads(text) if text.startswith("[") else []   # "No hay resultados." = end
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
+        except (urllib.error.URLError, subprocess.CalledProcessError, TimeoutError, json.JSONDecodeError):
             if i == tries - 1:
                 raise
             time.sleep(2 * (i + 1))
