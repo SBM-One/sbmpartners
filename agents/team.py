@@ -40,7 +40,7 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from . import mailer, review as review_checks, strategy, supervisor, teamdb as db
+from . import mailer, quota, review as review_checks, strategy, supervisor, teamdb as db
 from .common import FALLBACK_BETA, Usage, client
 from .practice import GRADER_SYSTEM, WRITER_SYSTEM, Grade, WriterTurn, playbook_text, score  # noqa: F401 (used by strategy.py)
 from .researcher import _collect_urls, _norm
@@ -59,12 +59,22 @@ class Fact(BaseModel):
     source_url: str = Field(description="The page it came from (must be a page you actually opened)")
 
 
+class BuyerSearch(BaseModel):
+    name: str = Field("", description="Full name of the person who buys furniture there, only if a page you opened names them")
+    title: str = Field("", description="Their job title, as the page gives it")
+    source_url: str = Field("", description="The opened page that names them")
+    linkedin_url: str = Field("", description="Their public LinkedIn profile URL, if you found it")
+    how_searched: str = Field(description="Where you looked for the buyer: which pages and searches")
+    not_found_reason: str = Field("", description="If no name: why none could be found")
+
+
 class ProspectBrief(BaseModel):
     summary: str = Field(description="2-3 sentences: who this buyer is and what they buy")
     facts: List[Fact] = Field(description="3-8 specific facts a seller could use, each with its source")
     angle: str = Field(description="The most relevant reason this buyer might care about the client's brand")
     cautions: str = Field(description="Anything that makes them a poor fit, or facts that could not be confirmed")
     fit: int = Field(description="Fit for the client's brand, 1 (poor) to 5 (excellent)")
+    buyer: Optional[BuyerSearch] = Field(None, description="Your attempt to name the person who buys furniture there")
 
 
 class ReportText(BaseModel):
@@ -115,6 +125,9 @@ client brand. Search the web and open the buyer's own website and other credible
 directories, the person's professional profile if public). Find specific, current facts a seller
 could use: what they carry, their style and price level, recent news, projects, locations, and what
 this person is responsible for. Keep to business facts; nothing about private life.
+Look for the person who buys furniture there (purchasing / compras, category buyer, owner of a small shop):
+the company's team or contact page, press, trade directories, a public LinkedIn profile. Say where you looked,
+and if you could not find a name, say why. Open at least three different pages.
 Say plainly what you could not confirm. Finish with your notes, each fact tied to the URL it came from."""
 
 
@@ -126,6 +139,11 @@ def research_prospect(conn, c, task: dict, usages: dict) -> dict:
              {"type": "web_fetch_20250910", "name": "web_fetch", "max_uses": 4}]
     messages = [{"role": "user", "content": f"Buyer to research: {who(p)}\n"
                                             f"Client brand (for judging fit): {brief.get('what_they_make', '')}"}]
+    day = quota.quota_day(task)
+    back = quota.sent_back(conn, task) if day else []
+    if back:   # an earlier attempt failed the completeness gate: say why
+        messages[0]["content"] += ("\n\nYour last research on this buyer was sent back as incomplete:\n- " + "\n- ".join(back)
+                                   + "\nFix all of it this time.")
     seen: set[str] = set()
     notes: list[str] = []
     for _ in range(4):
@@ -144,11 +162,22 @@ def research_prospect(conn, c, task: dict, usages: dict) -> dict:
         messages.append({"role": "assistant", "content": msg.content})
 
     out = parse(c, usage, db.WEB_MODEL,
-                "Turn research notes about one buyer into a short brief. Use only facts and URLs in the notes.",
+                "Turn research notes about one buyer into a short brief. Use only facts and URLs in the notes. "
+                "Fill `buyer` with what the notes say about who buys there and where the researcher looked.",
                 f"Buyer: {who(p)}\n\n<notes>\n{chr(10).join(notes)}\n</notes>", ProspectBrief, "low")
     opened = {_norm(u) for u in seen}
     facts = [f.model_dump() for f in out.facts if _norm(f.source_url) in opened]   # drop any unopened source
     result = {**out.model_dump(), "facts": facts, "dropped_unverified": len(out.facts) - len(facts)}
+    if result.get("buyer"):
+        b = result["buyer"]
+        b["source_verified"] = bool(b.get("name")) and _norm(b.get("source_url") or "") in opened
+    if day:   # a quota account: it only counts once the research is complete
+        q = quota.settings(conn)
+        problems = quota.research_problems(result, q)
+        if problems:
+            quota.record(conn, task, day, result, problems)
+            raise quota.IncompleteResearch("; ".join(problems))
+        quota.save_buyer(conn, task["contact_id"], result.get("buyer"))
     for f in facts:   # remember where each fact came from; rented/public data, not verified by us
         db.all_rows(conn, "insert into field_sources (entity, entity_id, field, value, source, owned, confidence) "
                           "values ('contact', %s, 'research_note', %s, %s, false, 0.6)",
@@ -157,6 +186,16 @@ def research_prospect(conn, c, task: dict, usages: dict) -> dict:
     if task.get("campaign_id"):
         scored = strategy.score_prospect(conn, c, task, result, task["id"], usage)
         result = {**result, "scored": scored}
+        if day:
+            s = strategy.strategy_for(conn, task["campaign_id"], task["contact_id"])
+            reach = strategy.reachability(conn, task, contact_row(conn, task["contact_id"]))
+            channels = {k: bool(reach[f"{k}_possible"]) for k in ("email", "linkedin", "whatsapp")}
+            problems = quota.score_problems(scored, s)
+            quota.record(conn, task, day, result, problems, fit_score=scored.get("fit_score"), channels=channels)
+            if problems:
+                db.all_rows(conn, "delete from prospect_strategies where task_id = %s and decided_by = 'strategist'", (task["id"],))
+                raise quota.IncompleteResearch("; ".join(problems))
+            result["quota"] = {"day": day.isoformat(), "passed": True, "channels": channels}
     return result
 
 

@@ -26,6 +26,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
           <nav aria-label="Control room">
             <NavLink href="/">Today</NavLink>
             <NavLink href="/approvals">Drafts{n(c.drafts)}</NavLink>
+            <NavLink href="/research">Research</NavLink>
             <NavLink href="/buyers">Buyers{n(c.replied)}</NavLink>
             <NavLink href="/meetings">Meetings{n(c.meetings)}</NavLink>
             <NavLink href="/sending">Sending{n(c.held)}</NavLink>
