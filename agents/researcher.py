@@ -96,8 +96,8 @@ def research(c, usage: Usage, topic: dict) -> tuple[str, set[str]]:
     """Step 1: search and read. Returns the notes and every URL the agent actually retrieved."""
     messages = [{"role": "user", "content": f"Research question: {topic['question']}"}]
     tools = [
-        {"type": "web_search_20260209", "name": "web_search", "max_uses": 12},
-        {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 10},
+        {"type": "web_search_20250305", "name": "web_search", "max_uses": 12},
+        {"type": "web_fetch_20250910", "name": "web_fetch", "max_uses": 10},
     ]
     seen: set[str] = set()
     text_parts: list[str] = []

@@ -82,7 +82,7 @@ def draft(c, files: List[pathlib.Path], website: Optional[str], usage: Usage, mo
         msgs = [{"role": "user", "content": [*content, {"type": "text", "text":
                  f"Read the client's website {website} (home, about, collections, trade/wholesale pages) and write "
                  "notes of every concrete fact about the brand, each with the URL it came from."}]}]
-        tools = [{"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 8, "allowed_domains": [_domain(website)]}]
+        tools = [{"type": "web_fetch_20250910", "name": "web_fetch", "max_uses": 8, "allowed_domains": [_domain(website)]}]
         for _ in range(4):
             with c.beta.messages.stream(model=model, max_tokens=32000, system=SYSTEM, messages=msgs, tools=tools,
                                         output_config={"effort": "medium"}, betas=[FALLBACK_BETA], fallbacks="default") as s:
