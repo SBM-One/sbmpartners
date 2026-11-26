@@ -61,7 +61,9 @@ MORNING STAGE (7:37 weekdays): follow-ups, research, first-touch drafts.
    need = autopilot_cap_today + 10 (buffer) − approved first-touch emails not yet sent − follow-ups due in the next 2 business days.
    If need <= 0 skip to step 6. Cap need at apollo_daily_reveals.
 
-4. Research with Apollo (connector Apollo_io).
+4. Research with Apollo (connector Apollo_io). Apollo is the ONLY research source in this run: no Firecrawl, no web
+   search or page fetches, no DENUE pulls, no other paid tools (cost rule, Santiago 2026-11-26). DENUE companies already
+   in Supabase are used as targets only.
    a. apollo_usage_stats_credit_usage_stats: if remaining credits < apollo_min_credits, skip reveals and note it.
    b. Targets, in this order, until need is met:
       - Companies already in Supabase with country 'MX', lead_score >= 50 (or DENUE chains with 5+ branches), a known
