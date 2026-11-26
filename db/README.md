@@ -7,9 +7,12 @@ One source of truth. Tools, agents, the supervisor and dashboards all read and w
 | `migrations/0001_core.sql` | Tables, indexes and dashboard views. Runs on any PostgreSQL 15+ with `pgvector`. |
 | `migrations/0002_supabase_privacy.sql` | Row-level security: client-portal users see only their own client's rows; the buyer network stays internal. Supabase only. |
 | `migrations/0003_agent_team.sql` | The agent team: task queue (`tasks`), approval queue (`outreach_drafts`), monthly spending caps, client fact sheets, and report approval. |
+| `migrations/0004_client_portal.sql` | Two read-only views for the client portal (pipeline and activity), showing only safe columns and only the client's own rows. |
 | `seed/pilot_example.sql` | Made-up pilot data for testing. Don't load in production. |
 | `tests/verify_privacy.sql` | Checks the privacy rules with throwaway test logins. Rolls back, so it saves nothing. |
 | `tests/verify_team.sql` | Checks the team rules: each task goes to one agent, nothing is sent without approval, do-not-contact is enforced, clients see only approved reports. Rolls back. |
+| `tests/verify_portal.sql` | Checks the portal views: each client sees only its own pipeline and activity, no emails or message bodies, and the public key sees nothing. Rolls back. |
+| `seed/demo_dashboard.sql` | Richer made-up data for previewing the dashboards locally. Never load it into the real project. |
 | `local/supabase_mock.sql` | Local testing only: stands in for Supabase's roles and `auth.uid()`. Never run on Supabase. |
 
 ## Main areas
@@ -34,11 +37,13 @@ Keys and passwords live only in a local `.env` file (ignored by git) or in your 
 1. `migrations/0001_core.sql`
 2. `migrations/0002_supabase_privacy.sql`
 3. `migrations/0003_agent_team.sql`
-4. `seed/pilot_example.sql` (test projects only)
-5. `tests/verify_privacy.sql`: the last result should read "All privacy checks passed. Nothing was saved."
-6. `tests/verify_team.sql`: the last result should read "All team checks passed. Nothing was saved."
+4. `migrations/0004_client_portal.sql`
+5. `seed/pilot_example.sql` (test projects only)
+6. `tests/verify_privacy.sql`: the last result should read "All privacy checks passed. Nothing was saved."
+7. `tests/verify_team.sql`: the last result should read "All team checks passed. Nothing was saved."
+8. `tests/verify_portal.sql`: the last result should read "All portal checks passed. Nothing was saved."
 
-Already set up with 0001 and 0002? Run only `0003_agent_team.sql`, then the two checks.
+Already set up with 0001 to 0003? Run only `0004_client_portal.sql`, then `tests/verify_portal.sql`.
 
 **Option B: from a terminal** (needs `psql`):
 ```bash
