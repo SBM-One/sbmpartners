@@ -13,7 +13,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
     select (select count(*)::int from outreach_drafts where status = 'pending_review') as drafts,
            (select count(*)::int from meeting_handoffs where status = 'ready') as meetings,
            (select count(*)::int from v_conversations where stage = 'replied') as replied,
-           (select count(*)::int from outreach_drafts where status = 'approved' and channel = 'linkedin') as linkedin,
+           (select count(*)::int from outreach_drafts where status = 'approved' and channel::text in ('linkedin','whatsapp')) as linkedin,
            (select count(*)::int from outreach_drafts where status = 'approved' and channel = 'email' and send_error is not null) as held,
            (select count(*)::int from reports where status = 'draft') as reports,
            (select count(*)::int from playbook_entries where status = 'draft') as playbook`;
@@ -29,7 +29,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
             <NavLink href="/buyers">Buyers{n(c.replied)}</NavLink>
             <NavLink href="/meetings">Meetings{n(c.meetings)}</NavLink>
             <NavLink href="/sending">Sending{n(c.held)}</NavLink>
-            <NavLink href="/linkedin">LinkedIn{n(c.linkedin)}</NavLink>
+            <NavLink href="/linkedin">By hand{n(c.linkedin)}</NavLink>
             <NavLink href="/reports">Letters{n(c.reports)}</NavLink>
             <NavLink href="/playbook">Playbook{n(c.playbook)}</NavLink>
             <NavLink href="/clients">Clients</NavLink>

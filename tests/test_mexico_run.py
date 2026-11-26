@@ -30,6 +30,9 @@ def fake_ai():
                                     decision="pursue" if sc > 2 else "disqualify", reason="Because.", pitch_angle="Dining.",
                                     lead_with=["Dining"], proof_points=["FSC"], offer=None, objections=[], first_ask="Una llamada",
                                     channel_plan="email", channel_reason="Allowed.")
+        elif fmt is team.ChannelPlan:
+            out = team.ChannelPlan(steps=[team.PlanStep(day=0, channel="email", purpose="first email"),
+                                          team.PlanStep(day=4, channel="whatsapp", purpose="WhatsApp")], why="x")
         elif fmt is WriterTurn:
             assert "Spanish (Mexico)" in kw["system"][0]["text"], "the Writer must see the Spanish rule"
             out = WriterTurn(subject="Comedores para sus tiendas",
@@ -74,7 +77,7 @@ def main():
     assert any("MX" in b for b in d["send_blockers"]), d["send_blockers"]
     assert all(sum(r["cost_usd"].values()) > 0 for r in rows), "every account has its cost"
     md = (tmp / "out" / "drafts_es.md").read_text()
-    assert "Safety gate: HELD" in md and "Strategist" in md
+    assert "Safety gate: HELD" in md and "fit score and pitch plan" in md and "channel plan" in md
     print(f"ok: {len(pursued)} pursued, {len(rows) - len(pursued)} not; drafts in Spanish, all held by the gate. Fake cost ${res['cost_usd']}")
 
 

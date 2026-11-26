@@ -146,18 +146,18 @@ def main(argv=None) -> None:
                      (args.client,))
     if not row:
         raise SystemExit(f"No client named {args.client!r}. Check the name, or add --create.")
-    if not db.can_work(conn, "onboarder"):
+    if not db.can_work(conn, "researcher"):
         raise SystemExit("The Onboarder is paused or out of budget this month (dashboard: Today).")
 
     usage = Usage()
-    model = db.TEAM["onboarder"][1]
+    model = db.TEAM["researcher"][1]
     print(f"Reading {len(files)} file(s){' and the website' if args.website else ''} with {model}…")
     try:
         fs = draft(client(), files, args.website, usage, model)
     except Exception:
-        db.record_run(conn, "onboarder", usage, f"fact sheet for {args.client}: failed", ok=False)
+        db.record_run(conn, "researcher", usage, f"fact sheet for {args.client}: failed", ok=False)
         raise
-    db.record_run(conn, "onboarder", usage, f"fact sheet draft for {args.client}")
+    db.record_run(conn, "researcher", usage, f"fact sheet draft for {args.client}")
     source = ", ".join([f.name for f in files] + ([args.website] if args.website else []))
     sheet = {**fs.model_dump(), "_note": "Drafted by the Onboarder from the client's own material. Approved fact sheets only."}
     db.all_rows(conn, "update clients set brief_draft = %s, brief_source = %s where id = %s",

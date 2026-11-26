@@ -1,11 +1,12 @@
 """Run the real agent team on the 29 Mexican buyers for Santa Fe Rústicos, and show the trail behind every draft.
 
 This is not a test with an answer key: it is the team doing its normal job on real accounts, end to end.
-  Supervisor           hands out the work (research, then qualification, then a first draft for each "pursue")
-  Prospect researcher  researches each account on the live web, with a source for every fact
-  Strategist           scores fit 0-100, decides pursue / nurture / disqualify, plans the pitch
-  Writer + Grader      writes the first email in Spanish; the Grader scores it and asks for one rewrite if weak
-  Safety gate          says, for each draft, what still stops it from being sent
+  Supervisor   hands out the work (rules, no AI)
+  Researcher   researches each account on the live web (a source for every fact), then scores fit 0-100,
+               decides pursue / nurture / disqualify and plans the pitch
+  Writer       plans the channels and writes the first message on each, in Spanish
+  Reviewer     grades every message, runs the safety checks, and asks for one rewrite if it is weak
+  Safety gate  says, for each draft, what still stops it from being sent
 
 DRAFTS ONLY. It runs in a throwaway local database (bench/sandbox.py) that is deleted at the end; the live
 Supabase database is never written to. The Mailer is not run at all, and every mailbox setting is removed.
@@ -39,7 +40,7 @@ from .run import FIX, ROOT, leak, load_playbook, unsupported_numbers, words
 SPANISH = re.compile(r"\b(de|que|para|con|los|las|una|sus|nuestra|nuestro|muebles|usted|le|su|por)\b", re.I)
 ENGLISH = re.compile(r"\b(the|and|with|your|our|we|you|for|furniture|would)\b", re.I)
 
-# Added to the fact sheet for this campaign only (the Writer, Strategist and Grader all read the fact sheet).
+# Added to the fact sheet for this campaign only (the researcher, writer and reviewer all read it).
 MX_RULES = {
     "outreach_language": "Every message to a buyer in Mexico is written in Spanish (Mexico), formal 'usted', "
                          "warm and direct. Subject line in Spanish too.",
@@ -160,7 +161,8 @@ def collect(conn, db, campaign_id, ids: dict) -> list[dict]:
                                   "score": float(d["score"]) if d["score"] is not None else None,
                                   "rewrites": d["rewrites"], "grader": d["grade_feedback"],
                                   "playbook_used": d["playbook_used"], "status": d["status"],
-                                  "send_blockers": d["blockers"], "checks": checks})
+                                  "send_blockers": d["blockers"], "checks": checks, "planned_day": d.get("planned_day"),
+                                  "review_checks": d.get("review_checks")})
         rows.append(row)
     order = {"pursue": 0, "nurture": 1, "disqualify": 2}
     rows.sort(key=lambda r: (order.get((r["strategy"] or {}).get("decision"), 3), -((r["strategy"] or {}).get("fit_score") or 0)))
@@ -175,7 +177,7 @@ def trail_md(r: dict) -> list[str]:
     L.append(f"**Decision: {s.get('decision', 'not reached')}**, fit {s.get('fit_score', '-')}/100. Cost for this account: ${cost:.2f} "
              f"({', '.join(f'{k} ${v:.2f}' for k, v in r['cost_usd'].items()) or 'nothing spent'}).")
     L.append("")
-    L.append("### 1. Prospect researcher (live web)")
+    L.append("### 1. Researcher: live web research")
     if res:
         L += [res.get("summary", ""), ""]
         for f in res.get("facts", []):
@@ -187,7 +189,7 @@ def trail_md(r: dict) -> list[str]:
     else:
         err = next((t["error"] for t in r["tasks"] if t["kind"] == "research_prospect"), None)
         L += [f"No research ({err or 'not reached'}).", ""]
-    L.append("### 2. Strategist")
+    L.append("### 2. Researcher: fit score and pitch plan")
     if s:
         L.append("| Criterion | Score | Why |")
         L.append("|---|---|---|")
@@ -206,14 +208,19 @@ def trail_md(r: dict) -> list[str]:
             L.append("")
     else:
         L += ["Not qualified.", ""]
+    plan = s.get("channel_sequence") if s else None
+    if plan:
+        L += ["### 3. Writer: channel plan", "", plan.get("why", ""), ""]
+        L += [f"- Day {st['day']}: {st['channel']}, {st['purpose']}" for st in plan.get("steps", [])] + [""]
     for d in r["drafts"]:
-        L.append(f"### 3. Writer → Grader: {d['channel']} draft, score {d['score']}/100"
-                 f"{', rewritten once after the Grader' if d['rewrites'] else ''}")
+        L.append(f"### 3. Writer → Reviewer: {d['channel']} draft"
+                 f"{' (planned for day ' + str(d['planned_day']) + ')' if d.get('planned_day') else ''}, score {d['score']}/100"
+                 f"{', rewritten once after review' if d['rewrites'] else ''}")
         L.append("")
         if d["subject"]:
             L += [f"**Asunto:** {d['subject']}", ""]
         L += ["```text", d["body"] or "", "```", ""]
-        L += [f"Grader: {d['grader']}", ""]
+        L += [f"Reviewer: {d['grader']}", ""]
         if d["playbook_used"]:
             L += [f"Playbook entries used: {'; '.join(d['playbook_used'])}", ""]
         c = d["checks"]
@@ -240,7 +247,7 @@ def report(res: dict) -> str:
          f"Cost: **${res['cost_usd']:.2f}** ({', '.join(f'{k} ${v:.2f}' for k, v in res['cost_by_agent'].items())}). "
          f"Time: {res['minutes']} min. Models: {res['models']}.", "",
          "Decisions: " + ", ".join(f"{v} {k}" for k, v in dec.items()) + ".",
-         f"Drafts: {len(drafts)}, average Grader score "
+         f"Drafts: {len(drafts)}, average review score "
          f"{round(sum(d['score'] for d in drafts if d['score'] is not None) / max(1, sum(d['score'] is not None for d in drafts)))}"
          f", {sum(bool(d['rewrites']) for d in drafts)} rewritten, "
          f"{sum(d['checks']['language'] == 'es' for d in drafts)} in Spanish, "
@@ -291,7 +298,7 @@ def main(argv=None) -> None:
     c = client()
     t0 = time.time()
     res = {"started": dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "errors": [],
-           "models": ", ".join(f"{n} {db.TEAM[n][1]}" for n in ("prospect-researcher", "strategist", "writer", "grader"))}
+           "models": f"researcher web look-up {db.WEB_MODEL}, " + ", ".join(f"{n} {db.TEAM[n][1]}" for n in ("researcher", "writer", "reviewer"))}
     with Sandbox(args.db) as url:
         conn = db.connect(url)
         client_id, campaign_id, brief, ids = setup(conn, db, playbook, buyers, fx["inboxes"])
@@ -302,6 +309,7 @@ def main(argv=None) -> None:
             traceback.print_exc()
             res["errors"].append(f"{type(exc).__name__}: {exc}")
         res["rows"] = collect(conn, db, campaign_id, ids)
+        res["channel_plans"] = {r["company"]: (r["strategy"] or {}).get("channel_sequence") for r in res["rows"]}
         res["cost_by_agent"] = {r["name"]: float(r["usd"]) for r in db.all_rows(conn, """
             select a.name, round(sum(r.cost_cents) / 100.0, 2) as usd from agent_runs r join agents a on a.id = r.agent_id
             group by 1 order by 2 desc""")}

@@ -44,7 +44,10 @@ def fake_ai(calls):
     def parse(**kw):
         fmt = kw["output_format"]
         calls[fmt.__name__] = calls.get(fmt.__name__, 0) + 1
-        if fmt is WriterTurn:
+        if fmt is team.ChannelPlan:
+            out = team.ChannelPlan(steps=[team.PlanStep(day=0, channel='email', purpose='first email'),
+                                          team.PlanStep(day=0, channel='linkedin', purpose='note')], why='x')
+        elif fmt is WriterTurn:
             text = kw["messages"][0]["content"]
             if "LinkedIn connection note" in text:
                 out = WriterTurn(subject=None, message="Hi Ana, I saw your new Lisbon store. I work with Portuguese oak makers.",
@@ -124,8 +127,9 @@ def main():
                       (t["client"], t["campaign"], p["id"], db.jsonb({"research_task_id": str(r)})))
         out = team.draft_outreach(conn, ai, task, {})
         db.finish(conn, task["id"], out)
-        assert out["channel"] == "email" and out.get("linkedin_draft_id"), out
-    li = db.one(conn, "select * from outreach_drafts where id = %s", (out["linkedin_draft_id"],))
+        chans = {d["channel"]: d["draft_id"] for d in out["drafts"]}
+        assert set(chans) == {"email", "linkedin"}, out
+    li = db.one(conn, "select * from outreach_drafts where id = %s", (chans["linkedin"],))
     assert li["channel"] == "linkedin" and len(li["body"]) <= 300 and li["status"] == "pending_review"
     print("ok: each buyer gets an email draft and a short LinkedIn note, both waiting for approval")
 
@@ -177,7 +181,7 @@ def main():
     task = [x for x in task if x["contact_id"] == t["people"][0]["id"]][0]
     out = team.draft_outreach(conn, ai, task, {})
     fu = db.one(conn, "select * from outreach_drafts where id = %s", (out["draft_id"],))
-    assert fu["step"] == 2 and fu["subject"] is None and "linkedin_draft_id" not in out
+    assert fu["step"] == 2 and fu["subject"] is None and len(out["drafts"]) == 1
     db.all_rows(conn, "update outreach_drafts set status = 'approved' where id = %s", (fu["id"],))
     db.all_rows(conn, "update mailboxes set next_send_at = null where address = %s", (cfg["address"],))
     assert mailer.send_due(conn, cfg, MON_10, smtp, log=lambda m: None) == 1

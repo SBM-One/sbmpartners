@@ -537,17 +537,18 @@ class Bench:
                                "(%s, %s, %s, %s, %s, %s) returning id",
                          (cid, ct["first_name"], ct["last_name"], ct["title"], ct["email"], co["country"]))["id"]
             usages: dict = {}
-            task = {"id": None, "client_id": self.client_id, "campaign_id": camp, "contact_id": pid}
+            # No campaign: this stage tests only the web look-up half of the researcher, not its scoring.
+            task = {"id": None, "client_id": self.client_id, "campaign_id": None, "contact_id": pid}
             t0 = time.time()
             try:
                 out = T.research_prospect(conn, self.c, task, usages)
                 err = None
             except Exception as exc:
                 out, err = {}, f"{type(exc).__name__}: {exc}"
-            u = usages.get("prospect-researcher")
+            u = usages.get("researcher")
             cost = u.cost_usd if u else 0.0
             if u:
-                self.record("prospect-researcher", u, f"benchmark: {l['key']}")
+                self.record("researcher", u, f"benchmark: {l['key']}")
             facts = out.get("facts", [])
             # These businesses do not exist, so any kept fact is about someone else (or made up).
             rows.append({"lead": l["key"], "company": co["name"], "facts_kept": len(facts), "facts": facts,
@@ -629,9 +630,9 @@ class Bench:
 
 
 # ─────────────────────────── the report ───────────────────────────
-LABEL = {"supervisor": "Supervisor + safety gate", "researcher": "Prospect researcher", "strategist": "Strategist",
-         "writer": "Writer (real pipeline drafts)", "practice": "Writer (practice conversations)", "grader": "Grader",
-         "sorter": "Reply sorter", "briefer": "Meeting briefer", "reporter": "Reporter"}
+LABEL = {"supervisor": "Supervisor + safety gate", "researcher": "Researcher: web look-up", "strategist": "Researcher: fit score and pitch",
+         "writer": "Writer (real pipeline drafts)", "practice": "Writer (practice conversations)", "grader": "Reviewer: grading",
+         "sorter": "Reviewer: sorting replies", "briefer": "Writer: meeting briefs", "reporter": "Writer: weekly reports"}
 TARGET = {"supervisor": 100, "researcher": 100, "strategist": 85, "writer": 80, "practice": 80, "grader": 85, "sorter": 90,
           "briefer": 100, "reporter": 100}
 
