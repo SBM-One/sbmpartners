@@ -1,0 +1,88 @@
+[
+ {
+  "subject": "Re: Dining for the new store",
+  "body": "Sounds interesting. Send me the line sheet and wholesale prices for the dining tables.",
+  "expect": [
+   "interested"
+  ]
+ },
+ {
+  "subject": "Re: Casegoods from Puebla",
+  "body": "What's the lead time on a first order, and do you ship KD?",
+  "expect": [
+   "question"
+  ]
+ },
+ {
+  "subject": "Re: Mexican-made bedroom sets",
+  "body": "We're fully stocked through Q2. Try me again in the summer.",
+  "expect": [
+   "not_now"
+  ]
+ },
+ {
+  "subject": "Re: Wholesale furniture",
+  "body": "I handle marketing, not buying. You want our buyer, Sam Ortiz, sam.ortiz@example.com.",
+  "expect": [
+   "wrong_person"
+  ]
+ },
+ {
+  "subject": "Re: Wholesale furniture",
+  "body": "No thanks, we only buy domestic.",
+  "expect": [
+   "not_interested"
+  ]
+ },
+ {
+  "subject": "Re: Rustic line",
+  "body": "Please take me off your list.",
+  "expect": [
+   "unsubscribe"
+  ]
+ },
+ {
+  "subject": "Automatic reply: Rustic line",
+  "body": "I am out of the office until December 2 with limited access to email.",
+  "expect": [
+   "out_of_office"
+  ]
+ },
+ {
+  "subject": "Re: Muebles para su tienda",
+  "body": "Gracias, pero ya no me escriban por favor.",
+  "expect": [
+   "unsubscribe"
+  ]
+ },
+ {
+  "subject": "Re: Muebles para su tienda",
+  "body": "Me interesa. ¿Me puede mandar el catálogo y precios de comedores?",
+  "expect": [
+   "interested"
+  ]
+ },
+ {
+  "subject": "Re: Dining sets",
+  "body": "How did you get my email? This is the third vendor this week. Not interested and don't contact me again.",
+  "expect": [
+   "unsubscribe"
+  ]
+ },
+ {
+  "subject": "Re: Private label",
+  "body": "Maybe. We'd need to see quality first. Can we get two sample chairs and what do samples cost?",
+  "expect": [
+   "interested",
+   "question"
+  ]
+ },
+ {
+  "subject": "Re: Wholesale furniture",
+  "body": "Not a fit for us right now, but good luck.",
+  "expect": [
+   "not_interested",
+   "not_now"
+  ]
+ }
+]
