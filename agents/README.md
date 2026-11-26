@@ -105,7 +105,7 @@ For each live campaign:
    The **Grader** scores it; below the Writer's `min_score` (80) it gets one rewrite with the Grader's feedback.
 5. The draft waits in `outreach_drafts` with status `pending_review` until a person approves it on the dashboard.
    If the campaign's channels include `linkedin` and the buyer has a `linkedin_url`, the Writer also drafts a short
-   connection note (no pitch, at most 280 characters) for you to send by hand.
+   connection note (no pitch, at most 200 characters) for you to send by hand.
 6. Approved emails go out through the **Mailer** (below). A sent email with no answer after the campaign's
    `followup_days` (5) gets a follow-up draft, up to `max_steps` (3) messages; each follow-up waits for approval too.
 7. When a buyer replies (by email, or logged by you on the Buyers page for LinkedIn or a call), `apply_reply()` stops

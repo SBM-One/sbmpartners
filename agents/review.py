@@ -29,7 +29,7 @@ URL = re.compile(r"https?://|www\.", re.I)
 SPANISH = re.compile(r"\b(de|que|para|con|los|las|una|sus|nuestra|nuestro|muebles|usted|le|su|por)\b", re.I)
 ENGLISH = re.compile(r"\b(the|and|with|your|our|we|you|for|furniture|would)\b", re.I)
 LIMITS = {"email": {"first": 150, "follow_up": 110, "reply": 170, "check_in": 110}}   # words
-CHARS = {"linkedin": 300, "whatsapp": 600}
+CHARS = {"linkedin": 200, "whatsapp": 600}  # LinkedIn cuts connection notes at 200
 
 
 def confidential_names(brief: dict) -> list[str]:

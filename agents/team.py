@@ -209,7 +209,7 @@ def active_playbook(conn) -> list[dict]:
 FOOTER_NOTE = ("\n\nThe sender's name, postal address and an unsubscribe link are added automatically under every "
                "email, so do not write your own opt-out line or signature block; end with your first name.")
 
-LINKEDIN_ASK = ("Write a LinkedIn connection note to this buyer. At most 280 characters. No pitch, no product, no link, "
+LINKEDIN_ASK = ("Write a LinkedIn connection note to this buyer. At most 200 characters (LinkedIn cuts notes at 200). No pitch, no product, no link, "
                 "no ask for a meeting: say who you are in a few words and mention one specific, true thing from the "
                 "research that made you want to connect. Leave subject empty.")
 
