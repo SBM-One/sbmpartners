@@ -238,3 +238,12 @@ details.research a { color: var(--aegean); text-decoration: underline; text-unde
   .notes p { grid-template-columns: 1fr; gap: 0; }
   .signin { padding: 24px; }
 }
+
+/* ---------- sending: selects, the outbox, rules ---------- */
+.field select { background: transparent; border: 0; border-bottom: 1px solid var(--rule); padding: 6px 18px 6px 0; border-radius: 0; }
+.field select:focus { outline: none; border-bottom-color: var(--navy); }
+.words .notice ul li { margin: 2px 0; }
+.ledger form.inline select, .ledger form.inline input:not(.line) { background: transparent; border: 0; border-bottom: 1px solid var(--rule); padding: 3px 0; border-radius: 0; }
+.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 22px 32px; align-items: end; max-width: 960px; }
+.settings .check { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--ink-soft); }
+.copy { white-space: pre-wrap; font-size: 15px; line-height: 1.6; color: var(--ink); max-width: 40em; user-select: all; }

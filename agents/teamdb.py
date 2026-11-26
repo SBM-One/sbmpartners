@@ -16,6 +16,8 @@ TEAM = {
     "writer": ("writer", os.environ.get("SBM_WRITER_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 10000),
     "grader": ("grader", os.environ.get("SBM_GRADER_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 10000),
     "reporter": ("reporter", os.environ.get("SBM_REPORTER_MODEL", "claude-sonnet-5-5"), 2000),
+    "onboarder": ("onboarder", os.environ.get("SBM_ONBOARD_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 2000),
+    "reply-sorter": ("reply_sorter", os.environ.get("SBM_REPLY_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 1000),
 }
 
 # Which agent does which kind of task.
@@ -53,7 +55,10 @@ def one(conn, sql: str, params: Iterable = ()) -> Optional[dict]:
 # ─────────────────────────── agents ───────────────────────────
 def register_team(conn) -> dict[str, dict]:
     """Make sure every team member has a row in `agents`. Keeps budgets and pauses you set."""
+    roles = set(one(conn, "select enum_range(null::agent_role)::text[] as r")["r"])
     for name, (role, model, budget) in TEAM.items():
+        if role not in roles:   # a newer agent whose database migration has not been run yet
+            continue
         all_rows(conn,
                  "insert into agents (name, role, model, monthly_budget_cents) values (%s, %s::agent_role, %s, %s) "
                  "on conflict (name) do update set model = excluded.model",

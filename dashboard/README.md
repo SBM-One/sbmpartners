@@ -13,10 +13,13 @@ Instrument Serif, Instrument Sans and Geist). The fonts ship with the app, so no
 | Page | What you do there |
 |---|---|
 | Today | What is waiting for you (drafts, letters, new playbook tactics, alerts you can mark seen or resolve), how each client is doing, and each agent's spend, budget and pause switch |
-| Drafts | Read and edit each draft, with the research and the Grader's notes underneath, then approve or reject. Nothing is sent without approval |
+| Drafts | Read and edit each draft, with the research and the Grader's notes underneath, then approve or reject. Nothing is sent without approval, and the safety gate's reasons show above any draft it blocks |
+| Sending | Emails approved and waiting, what was sent and what came back, the mailbox's daily cap and hours, email rules per country (confirm after a lawyer check), and the do-not-contact list |
+| LinkedIn | Approved LinkedIn notes to send by hand, with a link to each profile and an "I sent it" button |
 | Letters | Edit and approve each client's weekly letter. Clients only see approved letters |
 | Playbook | Approve or retire playbook entries, one at a time or all at once |
-| Clients | Fact sheets, live campaigns, each client's daily draft limit and portal logins |
+| Clients | Fact sheets (check and approve the Onboarder's draft), who the emails come from, live campaigns, daily draft limit and portal logins |
+| /u/… | The public unsubscribe page linked from every email (no login), plus the one-click address mail apps use |
 
 ## The client portal
 
@@ -83,7 +86,7 @@ npm run dev                    # open http://localhost:3000
 
 ```bash
 createdb sbm_demo && psql -d sbm_demo -f ../db/local/supabase_mock.sql
-for f in ../db/migrations/*.sql ../db/seed/demo_dashboard.sql; do psql -d sbm_demo -f "$f"; done
+for f in ../db/migrations/*.sql ../db/seed/demo_dashboard.sql ../db/seed/demo_sends.sql; do psql -d sbm_demo -f "$f"; done
 # .env.local: DATABASE_URL=postgresql://localhost/sbm_demo
 #   DEV_LOGIN_EMAIL=yago@sbm-demo.example            (control room)
 #   DEV_LOGIN_EMAIL=claire@harbourline-demo.example  (a client's portal)

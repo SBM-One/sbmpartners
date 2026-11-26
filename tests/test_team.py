@@ -66,7 +66,7 @@ def fake_ai(calls):
 
 def setup(conn) -> dict:
     tag = dt.datetime.now().strftime("%H%M%S%f")
-    cl = db.one(conn, "insert into clients (name, brief, daily_draft_limit) values (%s, %s, 2) returning id",
+    cl = db.one(conn, "insert into clients (name, brief, daily_draft_limit, brief_approved_at) values (%s, %s, 2, now()) returning id",
                 (f"Team test {tag}", db.jsonb({"brand": "Oak Co", "what_they_make": "oak furniture"})))["id"]
     co = db.one(conn, "insert into companies (name, domain, type) values ('Buyer', %s, 'retailer') returning id",
                 (f"buyer-{tag}.example",))["id"]
