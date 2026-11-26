@@ -127,3 +127,21 @@ details .text { margin-top: 8px; font-size: 14.5px; }
 .signin input.code { letter-spacing: 0.3em; font-variant-numeric: tabular-nums; }
 .signin .note { font-size: 13.5px; color: var(--muted); }
 .foot { margin-top: 48px; font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; }
+
+/* ---------- call brief ---------- */
+.rules { margin: 12px 0 0; padding-left: 18px; font-size: 14.5px; line-height: 1.5; color: var(--alarm); }
+.rules li { margin: 6px 0; }
+.rules.quiet { color: var(--ink-soft); }
+.kit-h { font-family: var(--display); font-weight: 600; font-size: 14px; color: var(--aegean); margin-top: 20px; letter-spacing: -0.005em; }
+.section .row .text { font-size: 15px; line-height: 1.5; white-space: pre-wrap; }
+details.qa { margin: 0; padding: 14px 0; border-bottom: 1px solid var(--rule-soft); }
+details.qa summary { color: var(--ink); font-family: var(--display); font-weight: 500; font-size: 16px; }
+details.qa[open] summary { color: var(--aegean); }
+details.qa .text { font-size: 15.5px; line-height: 1.55; }
+details.qa .sub { margin-top: 8px; }
+.stage ol { margin: 8px 0 0; padding-left: 20px; }
+.stage li { margin: 8px 0; font-size: 15.5px; line-height: 1.5; }
+.find input { width: 100%; margin-top: 22px; border: 0; border-bottom: 1px solid var(--ink); background: transparent; padding: 10px 0; font-size: 18px;
+  border-radius: 0; -webkit-appearance: none; }
+.find input:focus { outline: none; border-bottom-color: var(--aegean); }
+a.row:active { background: var(--rule-soft); }

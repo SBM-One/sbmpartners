@@ -10,6 +10,9 @@ One source of truth. Tools, agents, the supervisor and dashboards all read and w
 | `migrations/0004_client_portal.sql` | Two read-only views for the client portal (pipeline and activity), showing only safe columns and only the client's own rows. |
 | `migrations/0005_first_sends.sql` | The first real sends: each buyer's country, legal basis and email source; email rules per country (confirmed by a person); the safety gate `send_blockers()` that the database enforces on every approval and send; `stop_contact()` and the suppression list; the mailbox (daily cap, sending window); fact-sheet approval; follow-up rhythm per campaign. |
 | `migrations/0006_qualify_and_handoff.sql` | Qualification & Strategy and the meeting handoff: `prospect_strategies` (fit score 0-100, pursue / nurture / disqualify, pitch and channel for each buyer), what each draft is for (`purpose`: first, follow_up, reply, check_in), `apply_reply()` (what a reply changes, including the "not now" snooze), `meeting_handoffs` with `book_meeting()` and `close_meeting()`, and the tracker views `v_conversations` and `v_meetings`. The safety gate now also refuses a first message to a buyer not marked "pursue", and any automatic message once a buyer is handed to you for a meeting. |
+| `migrations/0010_call_brief.sql` | The call brief in the phone app: `call_kits` (each client's cheat sheet, hard-question answers and call script, staff only), `phone_brief()` (one buyer's brief with the history both ways) and `phone_find()` (search buyers). |
+| `seed/call_kit_santa_fe_rusticos.sql` | Santa Fe Rústicos' call kit. Real client facts: load it into the real project; re-running replaces the kit. |
+| `tests/verify_brief.sql` | Checks the call brief: only staff can open a brief or search, the public key can't read kits, and a brief carries the buyer, history and kit. Rolls back. |
 | `seed/pilot_example.sql` | Made-up pilot data for testing. Don't load in production. |
 | `tests/verify_privacy.sql` | Checks the privacy rules with throwaway test logins. Rolls back, so it saves nothing. |
 | `tests/verify_team.sql` | Checks the team rules: each task goes to one agent, nothing is sent without approval, do-not-contact is enforced, clients see only approved reports. Rolls back. |
@@ -54,6 +57,7 @@ Keys and passwords live only in a local `.env` file (ignored by git) or in your 
 Already set up with 0001 to 0003? Run only `0004_client_portal.sql`, then `tests/verify_portal.sql`.
 Already set up with 0001 to 0004? Run only `0005_first_sends.sql`, then `tests/verify_team.sql` and `tests/verify_sends.sql`.
 Already set up with 0001 to 0005? Run only `0006_qualify_and_handoff.sql`, then `tests/verify_sends.sql` and `tests/verify_pipeline.sql`.
+Already set up with 0001 to 0009? Run only `0010_call_brief.sql` and `seed/call_kit_santa_fe_rusticos.sql`, then `tests/verify_brief.sql`.
 
 **Option B: from a terminal** (needs `psql`):
 ```bash

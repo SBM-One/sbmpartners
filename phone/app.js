@@ -103,7 +103,8 @@
   }
 
   // ─────────────────────────── state ───────────────────────────
-  const state = { today: null, queue: null, inbox: null, loadedAt: null, editing: new Set(), done: new Map(), armed: null };
+  const state = { today: null, queue: null, inbox: null, loadedAt: null, editing: new Set(), done: new Map(), armed: null,
+    briefs: {}, findQ: "", found: null };
   async function load() {
     const [today, queue, inbox] = await Promise.all([rpc("phone_today"), rpc("phone_queue"), rpc("phone_inbox")]);
     Object.assign(state, { today, queue, inbox, loadedAt: new Date() });
@@ -316,6 +317,7 @@
     let s = said.length ? join(said) + "." : ib.replies.length ? "No new replies in the last two days." : "No replies yet.";
     s = s.charAt(0).toUpperCase() + s.slice(1);
     h += `<h1 class="statement">${esc(s)}</h1>`;
+    h += `<p class="acts"><a class="btn line" href="#brief">Prepare for a call</a></p>`;
 
     if (ib.meetings.length) {
       h += `<section class="section"><div class="sh"><h2>Meetings<span class="n">${ib.meetings.length}</span></h2><span class="aside">${num(booked.length)} booked</span></div>`;
@@ -324,8 +326,8 @@
         h += `<div class="row reply"><span class="lead">${m.status === "booked" ? esc(m.meeting_at ? shortDay(m.meeting_at) + "\n" + clock(m.meeting_at) : "Booked") : "Ready"}</span><div>`
           + `<div class="name">${esc(who)}</div><div class="sub">${esc([m.contact_title, m.client ? "for " + m.client : null].filter(Boolean).join(", "))}</div>`
           + (m.interest ? `<p class="summary">${esc(m.interest)}</p>` : "")
-          + `<details><summary>Read the brief</summary><p class="text" style="white-space:pre-wrap">${esc(m.body)}</p></details>`
-          + `<div class="acts" style="margin-top:6px">${m.email ? `<a class="link" href="mailto:${esc(m.email)}">Email</a>` : ""}`
+          + `<details><summary>Read the meeting brief</summary><p class="text" style="white-space:pre-wrap">${esc(m.body)}</p></details>`
+          + `<div class="acts" style="margin-top:6px">${m.contact_id ? `<a class="link" href="#brief/${esc(m.contact_id)}">Call brief</a>` : ""}${m.email ? `<a class="link" href="mailto:${esc(m.email)}">Email</a>` : ""}`
           + `${m.phone ? `<a class="link" href="tel:${esc(m.phone.replace(/[^\d+]/g, ""))}">Call</a>` : ""}`
           + `${m.linkedin_url ? `<a class="link" href="${esc(m.linkedin_url)}" target="_blank" rel="noopener noreferrer">LinkedIn</a>` : ""}</div>`
           + `</div></div>`;
@@ -342,11 +344,174 @@
         + (r.category ? `<div class="sub">${esc(r.category.replace(/_/g, " "))}${r.client ? ", for " + esc(r.client) : ""}</div>` : "")
         + (r.summary ? `<p class="summary">${esc(r.summary)}</p>` : "")
         + (r.body ? `<details><summary>${r.subject ? esc(r.subject) : "Their message"}</summary><p class="text" style="white-space:pre-wrap">${esc(r.body)}</p></details>` : "")
-        + (r.answer_waiting ? `<div class="acts" style="margin-top:6px"><a class="link" href="#send/email">Our answer is waiting</a></div>` : "")
+        + `<div class="acts" style="margin-top:6px">${r.answer_waiting ? `<a class="link" href="#send/email">Our answer is waiting</a>` : ""}`
+        + `${r.contact_id ? `<a class="link quiet" href="#brief/${esc(r.contact_id)}">Call brief</a>` : ""}</div>`
         + `</div></div>`;
     }
     return h + `</section>` + foot();
   }
+
+  // ─────────────────────────── call brief ───────────────────────────
+  // One page per buyer for a booked call: who they are, what we sent and what they said, then the client's call kit
+  // (cheat sheet, hard questions, script). Opened from a meeting or reply, or by searching for the buyer.
+  const txt = (v) => v == null ? "" : Array.isArray(v) ? v.map(txt).filter(Boolean).join("; ")
+    : typeof v === "object" ? Object.values(v).map(txt).filter(Boolean).join(": ") : String(v);
+  const fullName = (c) => [c?.first_name, c?.last_name].filter(Boolean).join(" ");
+  const fact = (label, value, html) => (value == null || value === "" || (Array.isArray(value) && !value.length)) ? ""
+    : `<div class="row"><span class="lead">${esc(label)}</span><div class="text">${html ? value : esc(txt(value))}</div></div>`;
+  const ext = (url) => /^https?:\/\//i.test(url) ? url : "https://" + url;
+  const SAID = { sent: "We sent", reply: "They replied", call: "Call", voicemail: "Voicemail", meeting_booked: "Meeting booked",
+    meeting_held: "Meeting held", sample_sent: "Samples sent", quote_sent: "Quote sent", order: "Order", reorder: "Reorder", note: "Note",
+    opened: "Opened", clicked: "Clicked", bounce: "Bounced", unsubscribe: "Unsubscribed" };
+
+  async function openBrief(id) {
+    if (state.briefs[id]?.loading) return;
+    state.briefs[id] = { loading: true };
+    try { state.briefs[id] = { data: await rpc("phone_brief", { p_contact: id }) }; }
+    catch (e) { state.briefs[id] = { error: e.message }; }
+    if (route().tab === "brief" && route().filter === id) draw(true);
+  }
+
+  function renderBrief(id) {
+    const got = state.briefs[id];
+    if (!got || got.loading) { if (!got) openBrief(id); return top("Call brief") + `<p class="empty">Loading the brief…</p>`; }
+    if (got.error) return top("Call brief") + `<p class="empty">Couldn't load it: ${esc(got.error)}</p><p class="acts"><a class="link" href="#brief">Search for a buyer</a></p>`;
+    const b = got.data, co = b.company || {}, c = b.contact || {}, m = b.meeting, s = b.strategy, kit = b.kit;
+    const person = fullName(c) || "the buyer";
+    const fill = (line) => String(line).replace(/\{contacto\}/g, fullName(c) ? c.first_name || fullName(c) : "").replace(/\{empresa\}/g, co.name || "su empresa")
+      .replace(/ ,/g, ",").replace(/,\s*\./g, ".");
+    const phone = c.phone || co.phone;
+    const wa = (c.whatsapp || c.phone || "").replace(/\D/g, "");
+
+    let h = top(b.client ? `Call brief · ${b.client}` : "Call brief");
+    h += `<p class="acts" style="margin-top:12px"><a class="link quiet" href="#inbox">Back to replies</a><a class="link quiet" href="#brief">Another buyer</a></p>`;
+    h += `<h1 class="statement" style="margin-top:14px">${esc(fullName(c) ? `Call with ${person}${co.name ? ", " + co.name : ""}.` : `Call with ${co.name || "the buyer"}.`)}</h1>`;
+    const when = m?.meeting_at ? `Booked for ${dayName(m.meeting_at)}, ${clock(m.meeting_at)}.` : m?.status === "ready" ? "Ready for a meeting; no time booked yet." : "";
+    const where = [co.hq_city, co.hq_state].filter(Boolean).join(", ");
+    h += `<p class="standfirst">${esc([c.title, where, when, m?.meeting_note].filter(Boolean).join(". ").replace(/\.\./g, "."))}</p>`;
+    h += `<div class="acts">${phone ? `<a class="btn" href="tel:${esc(phone.replace(/[^\d+]/g, ""))}">Call</a>` : ""}`
+      + `${wa.length >= 10 ? `<a class="btn line" href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener noreferrer">WhatsApp</a>` : ""}`
+      + `${c.email ? `<a class="link" href="mailto:${esc(c.email)}">Email</a>` : ""}`
+      + `${c.linkedin_url ? `<a class="link" href="${esc(c.linkedin_url)}" target="_blank" rel="noopener noreferrer">LinkedIn</a>` : ""}</div>`;
+
+    if (kit?.rules?.length) {
+      h += `<section class="section"><div class="sh"><h2>Never on this call</h2></div><ul class="rules">${kit.rules.map((r) => `<li>${esc(r)}</li>`).join("")}</ul></section>`;
+    }
+
+    // 1. the buyer
+    const stores = co.store_count ?? co.denue_branches;
+    h += `<section class="section"><div class="sh"><h2>The buyer</h2><span class="aside">${esc(co.name || "")}</span></div>`
+      + fact("Company", co.name) + fact("Type", co.type && co.type !== "other" ? co.type.replace(/_/g, " ") : null)
+      + fact("Stores", stores != null ? `${num(stores)}${co.store_count == null ? " branches (INEGI)" : ""}` : null)
+      + fact("Where", where || null) + fact("States", co.denue_states) + fact("Staff", co.denue_people_est)
+      + fact("Sells", co.categories) + fact("Style", co.style_tags) + fact("Price tier", co.price_tier) + fact("Segment", co.segment)
+      + fact("Website", co.website ? `<a class="link" href="${esc(ext(co.website))}" target="_blank" rel="noopener noreferrer">${esc(co.website.replace(/^https?:\/\//, ""))}</a>` : null, true)
+      + fact("Lead score", co.lead_score != null ? `${co.lead_score}${co.score_rationale ? ". " + co.score_rationale : ""}` : null)
+      + fact("Notes", co.notes)
+      + `</section>`;
+    h += `<section class="section"><div class="sh"><h2>The person</h2><span class="aside">${esc(c.is_decision_maker ? "Decision maker" : "")}</span></div>`
+      + fact("Name", fullName(c) || null) + fact("Role", c.title) + fact("Email", c.email) + fact("Phone", c.phone) + fact("WhatsApp", c.whatsapp)
+      + fact("Research", c.research_notes) + fact("Why them", c.score_rationale)
+      + (b.colleagues?.length ? fact("Also there", b.colleagues.map((o) => [o.name, o.title].filter(Boolean).join(", ")).filter(Boolean)) : "")
+      + `</section>`;
+
+    if (s) {
+      h += `<section class="section"><div class="sh"><h2>Our angle</h2><span class="aside">Fit ${esc(s.fit_score)} of 100</span></div>`
+        + fact("Pitch", s.pitch_angle) + fact("Lead with", s.lead_with) + fact("Proof", s.proof_points) + fact("Offer", s.offer)
+        + fact("Ask for", s.first_ask) + `</section>`;
+    }
+    if (m) {
+      h += `<section class="section"><div class="sh"><h2>Meeting brief</h2><span class="aside">${esc(m.status)}</span></div>`
+        + fact("Interest", m.interest) + fact("Fit", m.product_fit) + fact("Open questions", m.open_questions) + fact("Next steps", m.next_steps)
+        + (m.body ? `<details><summary>Read the full brief</summary><p class="text" style="white-space:pre-wrap">${esc(m.body)}</p></details>` : "")
+        + `</section>`;
+    }
+
+    // 2. what we sent and what they said
+    const hist = b.history || [];
+    h += `<section class="section"><div class="sh"><h2>What we sent, what they said<span class="n">${hist.length}</span></h2><span class="aside">Oldest first</span></div>`;
+    if (!hist.length) h += `<p class="empty">Nothing logged with this buyer yet.</p>`;
+    for (const x of hist) {
+      const them = x.direction === "inbound";
+      h += `<div class="row reply"><span class="lead" style="white-space:pre-line">${esc(shortDay(x.at))}\n${esc(KIND[x.channel] || x.channel.charAt(0).toUpperCase() + x.channel.slice(1))}</span><div>`
+        + `<div class="name" style="font-size:15px${them ? ";color:var(--aegean)" : ""}">${esc(SAID[x.kind] || x.kind)}${x.subject ? ": " + esc(x.subject) : ""}</div>`
+        + (x.summary ? `<p class="summary">${esc(x.summary)}</p>` : "")
+        + (x.body ? (them && !x.summary ? `<p class="text" style="white-space:pre-wrap">${esc(x.body)}</p>`
+          : `<details><summary>${them ? "Their words" : ["sent", "reply"].includes(x.kind) ? "What we wrote" : "Details"}</summary><p class="text" style="white-space:pre-wrap">${esc(x.body)}</p></details>`) : "")
+        + `</div></div>`;
+    }
+    for (const d of b.waiting || []) {
+      h += `<div class="row reply"><span class="lead">Waiting\n${esc(KIND[d.kind] || d.kind)}</span><div><div class="name" style="font-size:15px">Not sent yet${d.subject ? ": " + esc(d.subject) : ""}</div>`
+        + `<details><summary>The draft</summary><p class="text" style="white-space:pre-wrap">${esc(d.body)}</p></details></div></div>`;
+    }
+    h += `</section>`;
+
+    if (!kit) return h + `<p class="empty" style="margin-top:28px">No call kit for ${esc(b.client || "this client")} yet.</p>` + foot();
+
+    // 3. the client's cheat sheet
+    h += `<section class="section"><div class="sh"><h2>${esc(kit.title || b.client)}, at a glance</h2><span class="aside">${esc(kit.updated ? "Updated " + kit.updated : "")}</span></div>`;
+    for (const g of kit.facts || []) {
+      h += `<h3 class="kit-h">${esc(g.heading)}</h3>` + (g.items || []).map(([k, v]) => fact(k, v)).join("");
+    }
+    h += `</section>`;
+
+    // 4. hard questions
+    h += `<section class="section"><div class="sh"><h2>Hard questions<span class="n">${(kit.objections || []).length}</span></h2><span class="aside">Tap to open</span></div>`;
+    for (const o of kit.objections || []) {
+      h += `<details class="qa"><summary>“${esc(o.q)}”</summary><p class="text">${esc(fill(o.a))}</p>${o.proof ? `<p class="sub">${esc(o.proof)}</p>` : ""}</details>`;
+    }
+    h += `</section>`;
+
+    // 5. the script
+    h += `<section class="section"><div class="sh"><h2>Call script</h2><span class="aside">Español</span></div>`;
+    for (const st of kit.script || []) {
+      h += `<div class="stage"><h3 class="kit-h">${esc(st.stage)}</h3>${st.goal ? `<p class="sub">${esc(st.goal)}</p>` : ""}`
+        + `<ol>${(st.lines || []).map((l) => `<li>${esc(fill(l))}</li>`).join("")}</ol></div>`;
+    }
+    h += `</section>`;
+    if (kit.pending?.length) {
+      h += `<section class="section"><div class="sh"><h2>Still missing</h2></div><ul class="rules quiet">${kit.pending.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></section>`;
+    }
+    return h + foot();
+  }
+
+  function renderFind() {
+    let h = top("Call brief");
+    h += `<h1 class="statement">Who is the call with?</h1>`
+      + `<p class="standfirst">Type a person or a company. The brief has the buyer, everything we sent and they said, the cheat sheet and the script.</p>`
+      + `<div class="find"><input id="find" type="search" placeholder="Name or company" autocomplete="off" value="${esc(state.findQ || "")}"></div>`
+      + `<div id="found">${renderFound()}</div>`;
+    const soon = (state.inbox?.meetings || []);
+    if (soon.length && !state.findQ) {
+      h += `<section class="section"><div class="sh"><h2>Meetings</h2></div>`
+        + soon.map((m) => `<a class="row" href="#brief/${esc(m.contact_id)}"><span class="lead" style="white-space:pre-line">${esc(m.meeting_at ? shortDay(m.meeting_at) + "\n" + clock(m.meeting_at) : "Ready")}</span>`
+          + `<div><div class="name">${esc([m.contact, m.company].filter(Boolean).join(", "))}</div><div class="sub">Open the brief</div></div></a>`).join("")
+        + `</section>`;
+    }
+    return h + foot();
+  }
+  function renderFound() {
+    const r = state.found;
+    if (!state.findQ || state.findQ.trim().length < 2) return "";
+    if (!r) return `<p class="empty">Looking…</p>`;
+    if (!r.length) return `<p class="empty">No buyer matches “${esc(state.findQ)}”.</p>`;
+    return r.map((x) => `<a class="row" href="#brief/${esc(x.id)}"><span class="lead">${x.meeting ? "Meeting" : ""}</span><div>`
+      + `<div class="name">${esc(x.contact || x.company || "(no name)")}</div><div class="sub">${esc([x.contact ? x.company : null, x.title, x.city].filter(Boolean).join(", "))}</div></div></a>`).join("");
+  }
+  let findTimer;
+  document.addEventListener("input", (ev) => {
+    if (ev.target.id !== "find") return;
+    state.findQ = ev.target.value;
+    state.found = null;
+    clearTimeout(findTimer);
+    const q = state.findQ;
+    document.getElementById("found").innerHTML = renderFound();
+    if (q.trim().length < 2) return;
+    findTimer = setTimeout(async () => {
+      try { const r = await rpc("phone_find", { p_q: q }); if (state.findQ === q) { state.found = r; document.getElementById("found").innerHTML = renderFound(); } }
+      catch (e) { toast(e.message, true); }
+    }, 250);
+  });
 
   function renderSignIn(step, email, err) {
     $tabs.hidden = true;
@@ -368,24 +533,28 @@
   // ─────────────────────────── routing and drawing ───────────────────────────
   const route = () => {
     const [tab, filter] = (location.hash.replace(/^#/, "") || "today").split("/");
-    return { tab: ["today", "send", "inbox"].includes(tab) ? tab : "today", filter };
+    return { tab: ["today", "send", "inbox", "brief"].includes(tab) ? tab : "today", filter };
   };
   function draw(force) {
     if (!state.today) return;
     // Never redraw under your thumb while you are editing a draft.
     if (!force && state.editing.size && document.activeElement?.matches("textarea, input")) return;
     const { tab, filter } = route();
+    // A brief is read during a call: the 30-second refresh must not close what you opened or move the page.
+    if (!force && tab === "brief" && $app.dataset.tab === "brief") return;
     $tabs.hidden = false;
     const c = waitingCounts();
     const total = c.linkedin + c.whatsapp + c.call + c.email + c.other;
     const replies = (state.inbox?.replies || []).filter((r) => Date.now() - new Date(r.occurred_at) < 86400000 * 2).length
       + (state.inbox?.meetings || []).filter((m) => m.status === "ready").length;
     for (const a of $tabs.querySelectorAll("a")) {
-      a.classList.toggle("on", a.dataset.tab === tab);
+      a.classList.toggle("on", a.dataset.tab === (tab === "brief" ? "inbox" : tab));
       const n = a.dataset.tab === "send" ? total : a.dataset.tab === "inbox" ? replies : 0;
       a.innerHTML = esc(a.textContent.replace(/\d+$/, "")) + (n ? `<sup>${n}</sup>` : "");
     }
-    $app.innerHTML = tab === "send" ? renderSend(filter) : tab === "inbox" ? renderInbox() : renderToday();
+    $app.dataset.tab = tab;
+    $app.innerHTML = tab === "send" ? renderSend(filter) : tab === "inbox" ? renderInbox()
+      : tab === "brief" ? (filter ? renderBrief(filter) : renderFind()) : renderToday();
   }
 
   async function sync(force) {
@@ -473,7 +642,12 @@
     } finally { btn.disabled = false; }
   });
 
-  window.addEventListener("hashchange", () => { if (state.today) { draw(true); scrollTo(0, 0); } });
+  window.addEventListener("hashchange", () => {
+    if (!state.today) return;
+    const { tab, filter } = route();
+    if (tab === "brief" && filter && state.briefs[filter]?.data) { delete state.briefs[filter]; }  // fresh each time you open it
+    draw(true); scrollTo(0, 0);
+  });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && state.today) sync(); });
   setInterval(() => { if (!document.hidden && state.today) sync(); }, REFRESH_SECONDS * 1000);
 
