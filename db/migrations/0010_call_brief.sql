@@ -17,7 +17,7 @@
 create table if not exists call_kits (
   client_id  uuid primary key references clients(id) on delete cascade,
   kit        jsonb not null default '{}',     -- {title, updated, rules[], facts[{heading, items[[label, text]]}],
-                                              --  objections[{q, a, proof}], script[{stage, goal, lines[]}], pending[]}
+                                              --  objections[{q, a, proof}], flow[{n, title, say[], branches[{if, say, obj, note, go}]}], pending[]}
   updated_by text,
   updated_at timestamptz not null default now()
 );

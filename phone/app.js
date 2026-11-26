@@ -384,7 +384,7 @@
     const wa = (c.whatsapp || c.phone || "").replace(/\D/g, "");
 
     let h = top(b.client ? `Call brief · ${b.client}` : "Call brief");
-    h += `<p class="acts" style="margin-top:12px"><a class="link quiet" href="#inbox">Back to replies</a><a class="link quiet" href="#brief">Another buyer</a></p>`;
+    h += `<p class="acts" style="margin-top:12px"><a class="link quiet" href="#inbox">Back to replies</a><a class="link quiet" href="#brief">Another buyer</a>${b.kit?.flow?.length ? `<button class="link" data-jump="paso-1">Go to the script</button>` : ""}</p>`;
     h += `<h1 class="statement" style="margin-top:14px">${esc(fullName(c) ? `Call with ${person}${co.name ? ", " + co.name : ""}.` : `Call with ${co.name || "the buyer"}.`)}</h1>`;
     const when = m?.meeting_at ? `Booked for ${dayName(m.meeting_at)}, ${clock(m.meeting_at)}.` : m?.status === "ready" ? "Ready for a meeting; no time booked yet." : "";
     const where = [co.hq_city, co.hq_state].filter(Boolean).join(", ");
@@ -462,13 +462,33 @@
     }
     h += `</section>`;
 
-    // 5. the script
-    h += `<section class="section"><div class="sh"><h2>Call script</h2><span class="aside">Español</span></div>`;
-    for (const st of kit.script || []) {
-      h += `<div class="stage"><h3 class="kit-h">${esc(st.stage)}</h3>${st.goal ? `<p class="sub">${esc(st.goal)}</p>` : ""}`
-        + `<ol>${(st.lines || []).map((l) => `<li>${esc(fill(l))}</li>`).join("")}</ol></div>`;
+    // 5. the script: numbered steps to read top to bottom; each likely answer says what to say and which step is next
+    if (kit.flow?.length) {
+      h += `<section class="section"><div class="sh"><h2>Call script</h2><span class="aside">Read it word for word</span></div>`
+        + `<p class="sub" style="margin-top:10px">Say the lines in the box. Then find their answer below it and follow the arrow.</p>`;
+      for (const st of kit.flow) {
+        h += `<div class="step" id="paso-${esc(st.n)}"><h3 class="kit-h"><span class="sn">${esc(st.n)}</span>${esc(st.title)}</h3>`
+          + `<div class="say">${(st.say || []).map((l) => `<p>${esc(fill(l))}</p>`).join("")}</div>`
+          + `<ul class="branches">${(st.branches || []).map((br) => {
+            const ob = br.obj != null ? (kit.objections || [])[br.obj] : null;
+            return `<li><div class="if">Si dice: ${esc(br.if)}</div>`
+              + (ob ? `<p class="reply-line">“${esc(fill(ob.a))}”</p>` : "")
+              + (br.say ? `<p class="reply-line">“${esc(fill(br.say))}”</p>` : "")
+              + (br.note ? `<p class="sub">${esc(br.note)}</p>` : "")
+              + (br.go ? `<button class="link" data-jump="paso-${esc(br.go)}">${br.go === st.n ? "Repite este paso" : br.go === st.n + 1 ? `Sigue al paso ${esc(br.go)}` : `Salta al paso ${esc(br.go)}`}</button>`
+                : `<span class="sub">Fin de la llamada.</span>`)
+              + `</li>`;
+          }).join("")}</ul></div>`;
+      }
+      h += `</section>`;
+    } else if (kit.script?.length) {
+      h += `<section class="section"><div class="sh"><h2>Call script</h2><span class="aside">Español</span></div>`;
+      for (const st of kit.script) {
+        h += `<div class="stage"><h3 class="kit-h">${esc(st.stage)}</h3>${st.goal ? `<p class="sub">${esc(st.goal)}</p>` : ""}`
+          + `<ol>${(st.lines || []).map((l) => `<li>${esc(fill(l))}</li>`).join("")}</ol></div>`;
+      }
+      h += `</section>`;
     }
-    h += `</section>`;
     if (kit.pending?.length) {
       h += `<section class="section"><div class="sh"><h2>Still missing</h2></div><ul class="rules quiet">${kit.pending.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></section>`;
     }
@@ -592,6 +612,7 @@
     const b = ev.target.closest("button, a");
     if (!b) return;
     const ds = b.dataset;
+    if (ds.jump) { const el = document.getElementById(ds.jump); if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("hit"); setTimeout(() => el.classList.remove("hit"), 1200); } return; }
     if (ds.signout !== undefined) { auth.clear(); state.today = null; return renderSignIn("email"); }
     if (ds.restart !== undefined) return renderSignIn("email");
     if (ds.alert) return act("phone_alert", { p_id: ds.alert, p_status: ds.status }, null, "").then(() => sync(true));

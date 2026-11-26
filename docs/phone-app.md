@@ -14,7 +14,7 @@ One page per buyer for a booked call, opened from **Replies** or by searching a 
 
 1. **The buyer:** company, stores, city, what they sell, our notes and lead score; the person and others at the company; our pitch angle and the meeting brief when there is one. Call, WhatsApp and email buttons at the top.
 2. **What we sent and what they said:** every message both ways, oldest first, plus drafts not sent yet.
-3. **The client's call kit:** red lines first ("never on this call"), then the cheat sheet, answers to hard questions (tap to open) and the call script in Spanish, with the buyer's name filled in.
+3. **The client's call kit:** red lines first ("never on this call"), then the cheat sheet, answers to hard questions (tap to open) and the call script in Spanish: 15 numbered steps to read word for word, each with the buyer's likely answers, what to say back and which step comes next (tap to jump).
 
 The kit is one row per client in `call_kits` (migration `0010_call_brief.sql`). Santa Fe Rústicos' kit is
 `db/seed/call_kit_santa_fe_rusticos.sql`: edit it and run it again to change the kit. Kits hold the client's prices and

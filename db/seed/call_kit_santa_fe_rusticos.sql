@@ -212,72 +212,325 @@ select id, $kit${
    "proof": "30 días / 2 meses / 30 días."
   }
  ],
- "script": [
+ "flow": [
   {
-   "stage": "Apertura",
-   "goal": "Gracias, quién eres, permiso y agenda en 30 segundos.",
-   "lines": [
-    "Buen día, {contacto}. Habla Santiago Bonilla, de SBM Partners. Gracias por su tiempo.",
-    "Como le comenté, represento a Santa Fe Rústicos, una fábrica de muebles de madera maciza en Chipilo, Puebla, desde 1993.",
-    "¿Le parece si tomamos 15 minutos? Le hago unas preguntas para entender qué busca {empresa}, le cuento brevemente qué hace la fábrica y vemos si tiene sentido un siguiente paso."
+   "n": 1,
+   "title": "Saludo",
+   "say": [
+    "Buen día, {contacto}. Habla Santiago Bonilla, de SBM Partners. Gracias por tomar la llamada.",
+    "¿Tiene unos 15 minutos ahora, como quedamos?"
+   ],
+   "branches": [
+    {
+     "if": "Sí / Adelante",
+     "go": 2
+    },
+    {
+     "if": "Ahora no puedo",
+     "say": "Claro, no se preocupe. ¿Le acomoda mejor hoy más tarde o mañana a las 10?",
+     "go": 15,
+     "note": "Agenda la nueva hora y cierra con el paso 15."
+    }
    ]
   },
   {
-   "stage": "Preguntas para calificar",
-   "goal": "Escucha más de lo que hablas. Anota las respuestas.",
-   "lines": [
-    "¿Cuántas tiendas o puntos de venta manejan hoy, y en qué ciudades?",
-    "¿Qué categorías de mueble venden más? ¿Comedor, recámara, sala, entretenimiento?",
-    "¿Qué estilo se mueve mejor con sus clientes: moderno, contemporáneo, rústico?",
-    "Hoy, ¿a quién le compran? ¿Fabricante nacional, importación de Asia, o ambos?",
-    "¿Qué es lo que más les cuesta con sus proveedores: precio, tiempos, calidad, reclamaciones?",
-    "¿En qué rango de precio de venta al público se mueven las piezas que más venden?",
-    "¿Cada cuánto resurten y en qué volúmenes? ¿Compran por tráiler?",
-    "¿Les interesa marca propia o diseño exclusivo?",
-    "¿Reciben en un CEDIS o en cada tienda? ¿En qué ciudad?",
-    "Además de usted, ¿quién más participa en la decisión de dar de alta un proveedor?",
-    "¿Tienen fechas clave en las que planean compras (temporadas, Buen Fin, cambio de colección)?"
+   "n": 2,
+   "title": "Cómo va a ser la llamada",
+   "say": [
+    "Perfecto. Le propongo esto: primero le hago unas preguntas sobre {empresa}, luego le cuento en dos minutos qué hace la fábrica, y al final vemos juntos si tiene sentido un siguiente paso. ¿Le parece bien?"
+   ],
+   "branches": [
+    {
+     "if": "Sí",
+     "go": 3
+    }
    ]
   },
   {
-   "stage": "Presentación corta",
-   "goal": "Solo lo que conecta con lo que te dijeron.",
-   "lines": [
-    "Por lo que me cuenta, creo que encaja así: (elige 2 o 3 según sus respuestas)",
-    "Planta de 20,000 m² y 150 personas; hacemos 75,000 piezas al año y tenemos capacidad para crecer con ustedes.",
-    "Comedor, recámara, consolas, vitrinas, centros de entretenimiento y bares, en pino y álamo, desarmado o armado.",
-    "Primer pedido en 2 meses y resurtidos en 30 días, entregado en su ciudad con factura CFDI.",
-    "Marca propia y diseño en casa; si tienen su diseño, lo desarrollamos.",
-    "Defectos alrededor de 1 % y reclamaciones resueltas en 15 días."
+   "n": 3,
+   "title": "Quién representas",
+   "say": [
+    "Le cuento muy rápido: represento a Santa Fe Rústicos, una fábrica de muebles de madera maciza en Chipilo, Puebla. Llevan desde 1993, tienen 150 personas y hacen 75,000 piezas al año. Hoy lo fuerte es línea moderna y contemporánea en pino y álamo.",
+    "Pero antes de hablar de la fábrica, quiero entender a {empresa}."
+   ],
+   "branches": [
+    {
+     "if": "(sigue sin esperar respuesta)",
+     "go": 4
+    }
    ]
   },
   {
-   "stage": "Precio y condiciones",
-   "goal": "Da los números claros, en pesos.",
-   "lines": [
-    "Le cotizamos en pesos. Un tráiler completo entregado en CDMX, Monterrey o Guadalajara anda en unos 450,000 pesos, mercancía y flete juntos.",
+   "n": 4,
+   "title": "Pregunta: tiendas",
+   "say": [
+    "¿Cuántas tiendas manejan hoy, y en qué ciudades están?"
+   ],
+   "branches": [
+    {
+     "if": "Cualquier respuesta",
+     "note": "Anota el número de tiendas y las ciudades.",
+     "go": 5
+    }
+   ]
+  },
+  {
+   "n": 5,
+   "title": "Pregunta: qué venden",
+   "say": [
+    "¿Qué categorías de mueble les dejan más: comedor, recámara, sala o centros de entretenimiento?"
+   ],
+   "branches": [
+    {
+     "if": "Comedor, recámara, entretenimiento, guardado",
+     "say": "Muy bien, justo eso es lo fuerte de la fábrica.",
+     "go": 6
+    },
+    {
+     "if": "Sobre todo salas tapizadas o colchones",
+     "say": "Eso no es lo nuestro. Lo fuerte de la fábrica es comedor, recámara y muebles de guardado. ¿Cómo les va en esas categorías?",
+     "go": 6
+    }
+   ]
+  },
+  {
+   "n": 6,
+   "title": "Pregunta: a quién le compran",
+   "say": [
+    "Hoy, ¿a quién le compran esas piezas? ¿A un fabricante nacional, importan, o un poco de ambos?"
+   ],
+   "branches": [
+    {
+     "if": "Importamos (China, Vietnam, Asia)",
+     "say": "Entiendo. ¿Y cómo les va con los tiempos de entrega y con las reclamaciones cuando algo llega mal?",
+     "go": 7
+    },
+    {
+     "if": "A un fabricante nacional",
+     "say": "Perfecto. Si pudiera cambiarle una cosa a su proveedor actual, ¿cuál sería?",
+     "go": 7
+    },
+    {
+     "if": "Ya tengo proveedor y estoy contento",
+     "obj": 8,
+     "go": 7
+    }
+   ]
+  },
+  {
+   "n": 7,
+   "title": "Pregunta: qué les duele",
+   "say": [
+    "¿Qué es lo que más les cuesta hoy con sus proveedores: el precio, los tiempos de entrega, la calidad o resurtir rápido?"
+   ],
+   "branches": [
+    {
+     "if": "Precio",
+     "note": "En el paso 10 abre con precio puesto en su ciudad y en pesos.",
+     "go": 8
+    },
+    {
+     "if": "Tiempos o resurtido",
+     "note": "En el paso 10 abre con 2 meses el primer pedido y 30 días los resurtidos.",
+     "go": 8
+    },
+    {
+     "if": "Calidad o reclamaciones",
+     "note": "En el paso 10 abre con 1 % de defectos y reclamaciones en 15 días.",
+     "go": 8
+    }
+   ]
+  },
+  {
+   "n": 8,
+   "title": "Pregunta: volumen",
+   "say": [
+    "¿Cada cuánto resurten, y más o menos de cuánto es un pedido? ¿Llegan a comprar por tráiler completo?"
+   ],
+   "branches": [
+    {
+     "if": "Compran por tráiler o más",
+     "note": "Buen tamaño. Sigue.",
+     "go": 9
+    },
+    {
+     "if": "Pedidos chicos",
+     "note": "Recuerda: el primer pedido mínimo es de unos 175,000 pesos (paso 11).",
+     "go": 9
+    }
+   ]
+  },
+  {
+   "n": 9,
+   "title": "Pregunta: logística y decisión",
+   "say": [
+    "¿La mercancía la reciben en un CEDIS o en cada tienda? ¿En qué ciudad?",
+    "Y además de usted, ¿quién más participa en la decisión de dar de alta un proveedor nuevo?"
+   ],
+   "branches": [
+    {
+     "if": "Cualquier respuesta",
+     "note": "Anota ciudad de entrega y quién más decide. Si hay otra persona, invítala a la visita del paso 14.",
+     "go": 10
+    }
+   ]
+  },
+  {
+   "n": 10,
+   "title": "Presentación (2 minutos)",
+   "say": [
+    "Gracias, {contacto}. Por lo que me cuenta, creo que le podemos ayudar en tres cosas.",
+    "Uno: tiempos. El primer pedido sale en 2 meses y los resurtidos en 30 días, así no tiene que comprar inventario para medio año.",
+    "Dos: precio puesto en su ciudad. Le cotizamos en pesos, con el flete incluido hasta CDMX, Monterrey o Guadalajara, y con factura CFDI. Sin aduana y sin tipo de cambio.",
+    "Tres: calidad. Es madera maciza con certificación FSC, la tasa de defectos es de alrededor de 1 % y cualquier reclamación se resuelve en 15 días.",
+    "Además hacemos marca propia y diseño a la medida si lo necesitan. ¿Cómo lo ve hasta aquí?"
+   ],
+   "branches": [
+    {
+     "if": "Me interesa / Suena bien",
+     "go": 11
+    },
+    {
+     "if": "¿Por qué no comprar en China?",
+     "obj": 1,
+     "go": 11
+    },
+    {
+     "if": "¿Y la calidad? ¿Si llega dañado?",
+     "obj": 2,
+     "go": 11
+    },
+    {
+     "if": "¿Con quién trabajan?",
+     "obj": 7,
+     "go": 11
+    },
+    {
+     "if": "¿Pueden hacer mi diseño o mi marca?",
+     "obj": 10,
+     "go": 11
+    }
+   ]
+  },
+  {
+   "n": 11,
+   "title": "Precio y condiciones",
+   "say": [
+    "Le doy los números para que tenga una idea.",
+    "Un tráiler completo entregado en CDMX, Monterrey o Guadalajara anda en unos 450,000 pesos, mercancía y flete juntos.",
     "Para empezar, el primer pedido puede ser desde unos 175,000 pesos, con mínimo 20 piezas por modelo.",
-    "Las condiciones son 30 % de anticipo y 70 % al embarque, o carta de crédito.",
-    "El precio por pieza depende de los modelos que elija; con su selección le mando la cotización."
+    "Las condiciones son 30 % de anticipo y 70 % al embarque, o carta de crédito. El precio de cada pieza depende de los modelos que elija; con su selección le mando la cotización."
+   ],
+   "branches": [
+    {
+     "if": "Está bien / Tiene sentido",
+     "go": 12
+    },
+    {
+     "if": "Está caro",
+     "obj": 0,
+     "go": 12
+    },
+    {
+     "if": "¿Y el flete? ¿Quién paga el envío?",
+     "obj": 3,
+     "go": 12
+    },
+    {
+     "if": "El mínimo es mucho",
+     "obj": 5,
+     "go": 12
+    },
+    {
+     "if": "¿Me dan crédito a 30 o 60 días?",
+     "obj": 6,
+     "go": 12
+    },
+    {
+     "if": "¿Cuánto tardan?",
+     "obj": 11,
+     "go": 12
+    }
    ]
   },
   {
-   "stage": "Cierre",
-   "goal": "Pide uno de dos siguientes pasos, con fecha.",
-   "lines": [
-    "Lo más rápido para que vea la calidad es una de dos: le mandamos muestras de las piezas que elija, o viene a conocer la planta en Chipilo. ¿Qué le acomoda más?",
-    "Muestras: se cotizan según la selección, se pagan por adelantado y están en 30 días. ¿Qué piezas le gustaría ver?",
-    "Visita: ¿qué día de la próxima semana o la siguiente le queda para venir a Chipilo? Yo lo acompaño.",
-    "Mientras, le mando hoy el catálogo y la cotización de lo que platicamos. ¿A qué correo y quién más debe recibirlo?"
+   "n": 12,
+   "title": "Cierre: muestras o visita",
+   "say": [
+    "Lo más rápido para que vea la calidad es una de dos: le mandamos muestras de las piezas que elija, o viene a conocer la planta en Chipilo. ¿Qué le acomoda más?"
+   ],
+   "branches": [
+    {
+     "if": "Muestras",
+     "go": 13
+    },
+    {
+     "if": "Visita a la planta",
+     "go": 14
+    },
+    {
+     "if": "¿Las muestras son gratis?",
+     "obj": 4,
+     "say": "Entonces, ¿muestras o visita?",
+     "go": 12
+    },
+    {
+     "if": "Mándame el catálogo y yo te busco",
+     "obj": 9,
+     "note": "Pide la fecha para revisarlo. Si acepta fecha, ve al 15. Si no, una sola vez más: ¿muestras o visita?",
+     "go": 15
+    },
+    {
+     "if": "Lo tengo que platicar con alguien",
+     "say": "Claro. ¿Le parece si hacemos la visita a la planta con esa persona? Así lo ven juntos. ¿Qué día les acomoda?",
+     "go": 14
+    }
    ]
   },
   {
-   "stage": "Antes de colgar",
-   "goal": "Confirma y deja todo por escrito.",
-   "lines": [
-    "Entonces quedamos en: (repite el siguiente paso, la fecha y quién hace qué).",
-    "Le escribo hoy por correo y por WhatsApp con el resumen. Mi WhatsApp es el 222 437 4378.",
-    "Gracias, {contacto}. Que tenga buen día."
+   "n": 13,
+   "title": "Muestras",
+   "say": [
+    "Perfecto. ¿Qué piezas le gustaría ver?",
+    "Hoy le mando la cotización de esas muestras. Se pagan por adelantado y están listas en 30 días.",
+    "¿A qué dirección se las enviamos, y a quién le llegan?"
+   ],
+   "branches": [
+    {
+     "if": "Te da piezas y dirección",
+     "go": 15
+    }
+   ]
+  },
+  {
+   "n": 14,
+   "title": "Visita a Chipilo",
+   "say": [
+    "Excelente. ¿Qué día de la próxima semana o la siguiente le acomoda venir a Chipilo?",
+    "¿Vendría usted solo o con alguien más de su equipo? Yo los acompaño en la planta."
+   ],
+   "branches": [
+    {
+     "if": "Te da fecha",
+     "note": "Anota fecha, hora y quiénes vienen.",
+     "go": 15
+    }
+   ]
+  },
+  {
+   "n": 15,
+   "title": "Antes de colgar",
+   "say": [
+    "Entonces quedamos en esto: (repite el siguiente paso, la fecha y quién hace qué).",
+    "Hoy le escribo por correo y por WhatsApp con el resumen. Mi WhatsApp es el 222 437 4378. ¿A qué correo se lo mando, y quién más debe recibirlo?",
+    "Muchas gracias, {contacto}. Que tenga muy buen día."
+   ],
+   "branches": [
+    {
+     "if": "Fin de la llamada",
+     "note": "Manda el resumen el mismo día.",
+     "go": null
+    }
    ]
   }
  ],
