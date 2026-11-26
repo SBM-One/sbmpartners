@@ -13,15 +13,18 @@ from typing import Any, Iterable, Optional
 TEAM = {
     "supervisor": ("supervisor", "rules (no AI)", 0),
     "prospect-researcher": ("prospect_researcher", os.environ.get("SBM_PROSPECT_MODEL", "claude-sonnet-5-5"), 5000),
+    "strategist": ("strategist", os.environ.get("SBM_STRATEGIST_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 5000),
     "writer": ("writer", os.environ.get("SBM_WRITER_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 10000),
     "grader": ("grader", os.environ.get("SBM_GRADER_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 10000),
     "reporter": ("reporter", os.environ.get("SBM_REPORTER_MODEL", "claude-sonnet-5-5"), 2000),
     "onboarder": ("onboarder", os.environ.get("SBM_ONBOARD_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 2000),
     "reply-sorter": ("reply_sorter", os.environ.get("SBM_REPLY_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 1000),
+    "meeting-briefer": ("meeting_briefer", os.environ.get("SBM_BRIEFER_MODEL", os.environ.get("SBM_MODEL", "claude-opus-5-5")), 2000),
 }
 
 # Which agent does which kind of task.
-KIND_AGENT = {"research_prospect": "prospect-researcher", "draft_outreach": "writer", "write_report": "reporter"}
+KIND_AGENT = {"research_prospect": "prospect-researcher", "qualify_prospect": "strategist", "draft_outreach": "writer",
+              "draft_reply": "writer", "prepare_handoff": "meeting-briefer", "write_report": "reporter"}
 
 
 def connect(url: Optional[str] = None):

@@ -10,7 +10,7 @@ import os
 import sys
 from types import SimpleNamespace as NS
 
-from agents import supervisor, team, teamdb as db
+from agents import strategy, supervisor, team, teamdb as db
 from agents.practice import CriterionScore, Grade, WriterTurn
 
 URL = os.environ.get("TEST_DATABASE_URL")
@@ -27,6 +27,14 @@ def grade(s):
                            ["relevance", "value", "clarity", "ask", "tone", "honesty"]]
              + [CriterionScore(key="handling", score=None, why="")],
              feedback="Feedback.", top_fix="Name a product.", playbook_notes="")
+
+
+def good_strategy(**kw):
+    base = dict(criteria=[strategy.Criterion(key=k, score=4, why="Fits.") for k in strategy.FIT_WEIGHTS],
+                decision="pursue", reason="Carries oak.", pitch_angle="Oak range gap.", lead_with=["Side tables"],
+                proof_points=["38 stores"], offer="Free sample kit", objections=[], first_ask="Send the sample kit?",
+                channel_plan="email", channel_reason="Email allowed.")
+    return strategy.Strategy(**{**base, **kw})
 
 
 def fake_ai(calls):
@@ -54,6 +62,8 @@ def fake_ai(calls):
         elif fmt is Grade:
             calls["grader"] += 1
             out = grade(5 if calls["grader"] == 1 else 9)   # the very first draft is weak, so it gets a rewrite
+        elif fmt is strategy.Strategy:
+            out = good_strategy()
         elif fmt is team.ReportText:
             out = team.ReportText(headline="A quiet first week.", summary="We researched buyers.",
                                   highlights=["2 drafts written"], next_week=["Send approved drafts"])

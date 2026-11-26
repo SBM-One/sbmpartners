@@ -7,14 +7,16 @@ the database is the shared memory, so nothing is forgotten between runs.
 |---|---|---|
 | Researcher | Studies sales research on the web and drafts playbook entries, with sources | built |
 | Prospect researcher | Looks up each real buyer on the web before outreach, keeping only facts from pages it opened | built |
-| Writer | Writes outreach (email, LinkedIn, call openers) using approved playbook entries only | built |
+| Strategist | Scores each researched buyer's fit (0-100), decides pursue / nurture / disqualify, plans the pitch and picks the channel | built |
+| Writer | Writes outreach, follow-ups, answers to replies and one check-in after "not now", using approved playbook entries only | built |
 | Mock buyers | Play 8 buyer types in practice exchanges | built |
 | Grader | Scores each practice exchange and every real draft from 0 to 100 against a rubric | built |
 | Supervisor | Hands out work, paces outreach, enforces budgets, raises alerts (fixed rules, no AI cost) | built |
 | Reporter | Writes each client's weekly report from the database numbers, for your approval | built |
 | Onboarder | Drafts a client's fact sheet from their catalog, price list or website, for your approval | built |
 | Mailer | Sends approved emails slowly within the mailbox's daily cap, with address and unsubscribe link | built (no AI) |
-| Reply sorter | Reads replies, sorts them, stops follow-ups, and ends all contact on "unsubscribe" | built |
+| Reply sorter | Reads replies, sorts them, stops follow-ups, snoozes "not now", and ends all contact on "unsubscribe" | built |
+| Meeting briefer | Turns an interested buyer into a meeting brief for you: interest, product fit, checks, contact history, next steps | built |
 
 ## The Researcher
 
@@ -93,13 +95,26 @@ For each live campaign:
 1. The Supervisor picks the best-fit buyers in `campaign_targets` (never anyone marked do-not-contact),
    up to the client's `daily_draft_limit` per day (20 unless changed).
 2. The **Prospect researcher** looks each one up on the web. Facts from pages it didn't actually open are dropped.
-3. The **Writer** drafts the first message from the client's fact sheet, the approved playbook and the research.
+3. The **Strategist** scores the fit from 0 to 100 (product fit 30, kind of buyer 20, price level 20, decision maker 15,
+   timing 15) and decides: **pursue**, **nurture** (not now) or **disqualify**. Pursue needs at least the campaign's
+   `min_fit_score` (60) and clear product fit. It also plans the pitch (angle, what to lead with, proof, offer, likely
+   objections, the one ask) and the channel the rules allow: email, email plus a LinkedIn note, or LinkedIn only
+   (e.g. Germany without consent). Saved in `prospect_strategies`; you can overrule it on the Buyers page, and it never
+   overwrites your decision. The database refuses a first message to anyone not marked pursue.
+4. The **Writer** drafts the first message from the client's fact sheet, the approved playbook, the research and the strategy.
    The **Grader** scores it; below the Writer's `min_score` (80) it gets one rewrite with the Grader's feedback.
-4. The draft waits in `outreach_drafts` with status `pending_review` until a person approves it on the dashboard.
+5. The draft waits in `outreach_drafts` with status `pending_review` until a person approves it on the dashboard.
    If the campaign's channels include `linkedin` and the buyer has a `linkedin_url`, the Writer also drafts a short
    connection note (no pitch, at most 280 characters) for you to send by hand.
-5. Approved emails go out through the **Mailer** (below). A sent email with no answer after the campaign's
+6. Approved emails go out through the **Mailer** (below). A sent email with no answer after the campaign's
    `followup_days` (5) gets a follow-up draft, up to `max_steps` (3) messages; each follow-up waits for approval too.
+7. When a buyer replies (by email, or logged by you on the Buyers page for LinkedIn or a call), `apply_reply()` stops
+   their follow-ups. Interested or a question: the **Writer** drafts our answer, sent in their thread once you approve.
+   Interested: the **Meeting briefer** writes a brief on the Meetings page and you get an urgent alert. "Not now": the
+   buyer is snoozed for the campaign's `snooze_days` (60), then gets one check-in draft. "Stop": everything ends.
+8. You book the meeting on the Meetings page: it is logged, a deal opens in the client's pipeline, the buyer moves to
+   "meeting", and no automatic message goes to them again. Afterwards you mark it held, no-show or cancelled.
+   `v_conversations` (the Buyers page) shows where every buyer stands.
 
 Every Monday the **Reporter** drafts last week's report for each client (`reports`, status `draft`).
 Clients only ever see reports you set to `approved`.

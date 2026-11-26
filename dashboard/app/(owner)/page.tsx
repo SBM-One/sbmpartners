@@ -19,13 +19,16 @@ type Agent = { agent_id: string; name: string; role: string; active: boolean; pa
 const AGENT_JOBS: Record<string, string> = {
   supervisor: "Hands out work, paces outreach, watches budgets",
   "prospect-researcher": "Looks up each buyer before outreach",
-  writer: "Drafts outreach from the approved playbook",
+  strategist: "Scores each buyer's fit and plans the pitch and channel",
+  "meeting-briefer": "Turns interested buyers into meeting briefs",
+  writer: "Drafts outreach, follow-ups and answers from the approved playbook",
   grader: "Scores every draft from 0 to 100",
   reporter: "Writes the weekly letters to clients",
   researcher: "Builds the sales playbook from research",
   mock_buyer: "Plays buyers in practice rounds",
 };
-const AGENT_NAMES: Record<string, string> = { "prospect-researcher": "Prospect researcher", mock_buyer: "Practice buyer" };
+const AGENT_NAMES: Record<string, string> = { "prospect-researcher": "Prospect researcher", mock_buyer: "Practice buyer",
+  "meeting-briefer": "Meeting briefer" };
 const WORDS = ["Nothing", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
 const spell = (n: number, lower = false) => {
   const w = WORDS[n] ?? num(n);

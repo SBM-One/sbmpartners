@@ -8,8 +8,11 @@ export const metadata: Metadata = { title: "SBM Partners · Control room" };
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
   const staff = await requireStaff();
-  const [c] = await sql<{ drafts: number; reports: number; playbook: number; linkedin: number; held: number }[]>`
+  const [c] = await sql<{ drafts: number; reports: number; playbook: number; linkedin: number; held: number; meetings: number;
+    replied: number }[]>`
     select (select count(*)::int from outreach_drafts where status = 'pending_review') as drafts,
+           (select count(*)::int from meeting_handoffs where status = 'ready') as meetings,
+           (select count(*)::int from v_conversations where stage = 'replied') as replied,
            (select count(*)::int from outreach_drafts where status = 'approved' and channel = 'linkedin') as linkedin,
            (select count(*)::int from outreach_drafts where status = 'approved' and channel = 'email' and send_error is not null) as held,
            (select count(*)::int from reports where status = 'draft') as reports,
@@ -23,6 +26,8 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
           <nav aria-label="Control room">
             <NavLink href="/">Today</NavLink>
             <NavLink href="/approvals">Drafts{n(c.drafts)}</NavLink>
+            <NavLink href="/buyers">Buyers{n(c.replied)}</NavLink>
+            <NavLink href="/meetings">Meetings{n(c.meetings)}</NavLink>
             <NavLink href="/sending">Sending{n(c.held)}</NavLink>
             <NavLink href="/linkedin">LinkedIn{n(c.linkedin)}</NavLink>
             <NavLink href="/reports">Letters{n(c.reports)}</NavLink>
