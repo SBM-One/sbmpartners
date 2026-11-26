@@ -12,7 +12,7 @@
 
 All numbers are in the database table research_quota_settings (one row).
 
-  python -m agents.quota import ~/SBM\\ PARTNERS/denue/companies.json   load DENUE rows (json, jsonl or csv)
+  python -m agents.quota import ~/SBM\\ PARTNERS/denue/chains.csv   load DENUE (chains.csv from agents/denue.py, or raw json/jsonl/csv)
   python -m agents.quota screen --client "Santa Fe Rústicos" --campaign <id>   today's screening + research tasks
   python -m agents.quota spot-check                                          re-check a sample of today's passed accounts
   python -m agents.quota status                                              today's numbers
@@ -58,7 +58,7 @@ ALIASES = {
     "name": ["nom_estab", "Nombre", "nombre", "name"],
     "legal_name": ["raz_social", "Razon_social", "razon_social", "legal_name"],
     "activity": ["nombre_act", "Clase_actividad", "clase_actividad", "activity"],
-    "activity_code": ["codigo_act", "Codigo_act", "scian", "activity_code"],
+    "activity_code": ["codigo_act", "Codigo_act", "scian", "clase", "activity_code"],
     "staff_band": ["per_ocu", "Estrato", "estrato", "staff_band"],
     "city": ["municipio", "Municipio", "nom_mun", "city"],
     "state": ["entidad", "Entidad", "nom_ent", "state"],
@@ -67,6 +67,34 @@ ALIASES = {
     "website": ["www", "Sitio_internet", "sitio_internet", "website"],
     "branches": ["establishments", "establecimientos", "branches", "n_estab"],
 }
+
+
+# SCIAN classes the DENUE pull asks for (agents/denue.py): (label, points, kind)
+SCIAN = {
+    "466111": ("Furniture stores (home)", 35, "retailer"),
+    "466112": ("Appliance and furniture stores", 30, "retailer"),
+    "466113": ("Garden furniture stores", 25, "retailer"),
+    "462210": ("Department stores", 25, "retailer"),
+    "462111": ("Supermarkets and clubs", 15, "retailer"),
+    "467111": ("Hardware stores", 15, "retailer"),
+    "467116": ("Building materials / home improvement", 20, "retailer"),
+    "721111": ("Hotels", 15, "hospitality"),
+    "541410": ("Interior design firms", 15, "design_firm"),
+    "435412": ("Office furniture wholesale", 30, "distributor"),
+}
+
+
+def chain_row(r: dict) -> dict:
+    """One row of agents/denue.py's chains.csv (already one row per company)."""
+    classes = [c.split(":")[0] for c in (r.get("classes") or "").split() if c]
+    code = classes[0] if classes else None
+    state = (r.get("top_states") or "").split(";")[0].strip() or None
+    return {"source_key": f"chain:{r['chain']}", "name": (r.get("chain") or "").title(), "legal_name": r.get("legal_name") or None,
+            "activity": SCIAN.get(code, (code,))[0] if code else None, "activity_code": " ".join(classes) or None,
+            "staff_band": f"about {r.get('people_est')} people" if r.get("people_est") else None,
+            "staff_min": int(float(r["people_est"])) if r.get("people_est") else None,
+            "branches": int(float(r.get("branches") or 1)), "city": None, "state": state.title() if state else None,
+            "phone": r.get("phone") or None, "email": r.get("email") or None, "website": r.get("website") or None, "raw": r}
 
 
 def _get(row: dict, field: str):
@@ -111,6 +139,10 @@ def companies_from(rows: Iterable[dict]) -> list[dict]:
     """DENUE lists establishments (each branch); group them into companies by name and state."""
     out: dict[str, dict] = {}
     for r in rows:
+        if r.get("chain"):   # chains.csv: already one row per company
+            c = chain_row(r)
+            out[c["source_key"]] = c
+            continue
         name = _get(r, "name")
         if not name:
             continue
@@ -166,8 +198,18 @@ def score(c: dict) -> tuple[int, list[str], Optional[str]]:
     notes, s = [], 0
     if "fabricacion" in act or "manufactur" in act:
         return 0, ["makes furniture"], "A maker, not a buyer (would be a competitor)."
+    codes = (c.get("activity_code") or "").split()
+    if codes and codes[0].startswith("337"):
+        return 0, ["makes furniture"], "A maker, not a buyer (would be a competitor)."
+    known_code = next((k for k in codes if k in SCIAN), None)
+    if known_code:
+        label, pts, _ = SCIAN[known_code]
+        s += pts; notes.append(f"{label} +{pts}")
+        act = ""
     furniture = ("mueble" in act or "mobiliario" in act) and not any(w in act for w in ("computo", "medic", "laboratorio"))
-    if furniture and "por mayor" in act:
+    if known_code:
+        pass
+    elif furniture and "por mayor" in act:
         s += 35; notes.append("furniture wholesaler +35")
     elif furniture:
         s += 35; notes.append("furniture retailer +35")
@@ -241,7 +283,10 @@ def screen(conn, client_id, campaign_id, day: Optional[dt.date] = None, log: Cal
     return out
 
 
-def buyer_type(activity: Optional[str]) -> str:
+def buyer_type(activity: Optional[str], codes: Optional[str] = None) -> str:
+    code = next((k for k in (codes or "").split() if k in SCIAN), None)
+    if code:
+        return SCIAN[code][2]
     a = fold(activity or "")
     return "distributor" if "por mayor" in a else "hospitality" if "hotel" in a else "retailer"
 
@@ -251,7 +296,7 @@ def add_buyer(conn, c: dict, campaign_id) -> tuple:
     company_id = db.one(conn, """insert into companies (name, domain, type, hq_city, hq_state, country, website, phone, notes)
                                  values (%s, %s, %s::buyer_type, %s, %s, 'MX', %s, %s, %s)
                                  on conflict (domain) do update set updated_at = now() returning id""",
-                        (c["name"], d, buyer_type(c.get("activity")), c.get("city"), c.get("state"), c.get("website"), c.get("phone"),
+                        (c["name"], d, buyer_type(c.get("activity"), c.get("activity_code")), c.get("city"), c.get("state"), c.get("website"), c.get("phone"),
                          f"From DENUE (INEGI): {c.get('activity') or ''}; {c.get('staff_band') or ''}; {c.get('branches')} branch(es)."))["id"]
     email = (c.get("email") or "").strip().lower() or None
     if email and db.one(conn, "select 1 from contacts where email = %s", (email,)):

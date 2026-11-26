@@ -196,7 +196,7 @@ the reasons. A random 10% of passed accounts is re-checked against the cited pag
 numbers are in `research_quota_settings`. The dashboard's Research page shows target vs done vs passed and every
 skipped company with its reason.
 
-    python -m agents.quota import "~/SBM PARTNERS/denue/<file>.json"    # once, or when DENUE is refreshed
+    python -m agents.quota import "$HOME/SBM PARTNERS/denue/chains.csv"   # once, or when DENUE is refreshed
     python -m agents.quota screen --client "Santa Fe Rústicos" --campaign <campaign id>   # each morning
     python -m agents.team run                                         # research, scoring, drafts (as before)
     python -m agents.quota spot-check                                 # end of day

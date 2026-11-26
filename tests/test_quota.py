@@ -88,6 +88,15 @@ def main():
     assert quota.supported("Doce sucursales en Nuevo León", PAGES["https://muebleria.example/sucursales"])[0]
     assert not quota.supported("Exporta a Japón y Corea desde 1980", PAGES["https://muebleria.example/sucursales"])[0]
 
+    chain = quota.companies_from([{"chain": "MUEBLES DICO", "legal_name": "MUEBLES DICO SA DE CV", "sample_store": "DICO 12",
+                                   "branches": "40", "people_est": "900", "big_sites": "2", "classes": "466111:38 435412:2",
+                                   "website": "www.dico.com.mx", "email": "", "phone": "", "n_states": "9",
+                                   "top_states": "Ciudad de México; Jalisco; Puebla"}])[0]
+    sc, notes, skip = quota.score(chain)
+    assert chain["branches"] == 40 and chain["state"] == "Ciudad De México" and not skip and sc >= 90, (chain, sc, notes)
+    assert quota.buyer_type(chain["activity"], chain["activity_code"]) == "retailer"
+    print("ok: reads agents/denue.py's chains.csv (one row per company) and scores it by SCIAN class")
+
     conn = db.connect(url)
     db.register_team(conn)
     db.all_rows(conn, "update agents set active = true, paused_reason = null, monthly_budget_cents = 100000 where name = any(%s)",
