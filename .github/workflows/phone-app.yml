@@ -1,0 +1,30 @@
+# Publishes the phone app (the phone/ folder) to GitHub Pages at app.sbmpartners.net, free.
+# Runs on every change to phone/ on main, or by hand from the Actions tab.
+name: Phone app
+on:
+  push:
+    branches: [main]
+    paths: ["phone/**", ".github/workflows/phone-app.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "app.sbmpartners.net" > phone/CNAME
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: phone
+      - id: deployment
+        uses: actions/deploy-pages@v4
