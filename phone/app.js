@@ -103,7 +103,7 @@
   }
 
   // ─────────────────────────── state ───────────────────────────
-  const state = { today: null, queue: null, inbox: null, loadedAt: null, editing: new Set(), done: new Map(), armed: null };
+  const state = { today: null, queue: null, inbox: null, loadedAt: null, editing: new Set(), logging: new Set(), done: new Map(), armed: null };
   async function load() {
     const [today, queue, inbox] = await Promise.all([rpc("phone_today"), rpc("phone_queue"), rpc("phone_inbox")]);
     Object.assign(state, { today, queue, inbox, loadedAt: new Date() });
@@ -287,19 +287,22 @@
       else h += `<button class="btn" data-approve="${d.id}" ${blockers.length ? "disabled" : ""}>Approve</button><button class="link" data-edit="${d.id}">Edit</button>`;
       h += `<button class="link alarm" data-reject="${d.id}">${state.armed === d.id ? "Tap again to reject" : "Reject"}</button>`;
     } else {
+      const off = blockers.length ? "disabled" : "";
       if (k === "linkedin") {
         const p = parts(d);
-        h += p.profile ? `<button class="btn" data-copy="${d.id}" data-part="0" data-open="${esc(p.profile)}">Copy note + open profile</button>`
-          : `<button class="btn line" data-copy="${d.id}" data-part="0">Copy note</button><span class="sub alarm">No profile link on file</span>`;
+        h += p.profile ? `<button class="btn" data-copy="${d.id}" data-part="0" data-open="${esc(p.profile)}" data-log="${d.id}" ${off}>Copy note, open profile</button>`
+          : `<button class="btn" data-copy="${d.id}" data-part="0" data-log="${d.id}" ${off}>Copy note</button><span class="sub alarm">No profile link on file</span>`;
       } else if (k === "whatsapp") {
         const wa = waLink(d);
-        h += wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener noreferrer">Open WhatsApp</a>` : `<span class="sub alarm">No WhatsApp number on file</span>`;
+        h += wa && !off ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener noreferrer" data-log="${d.id}">Open WhatsApp</a>`
+          : wa ? `<button class="btn" disabled>Open WhatsApp</button>` : `<span class="sub alarm">No WhatsApp number on file</span>`;
       } else if (k === "call") {
         const tel = telLink(d);
-        h += tel ? `<a class="btn" href="${esc(tel)}">Call ${esc(prettyNumber(d.number))}</a>` : `<span class="sub alarm">No number on file</span>`;
+        h += tel ? `<a class="btn" href="${esc(tel)}" data-log="${d.id}">Call ${esc(prettyNumber(d.number))}</a>` : `<span class="sub alarm">No number on file</span>`;
       }
-      h += `<button class="btn line" data-sent="${d.id}" ${blockers.length ? "disabled" : ""}>${k === "call" ? "Called" : "Sent"}</button>`
-        + `<button class="link quiet" data-skip="${d.id}">Skip</button>`;
+      if (!off) h += `<button class="link" data-log="${d.id}">${k === "call" ? "Already called" : "Already sent it"}</button>`;
+      h += `<button class="link quiet" data-skip="${d.id}">Skip</button>`;
+      if (!off) h += `<p class="count" style="flex-basis:100%">Tapping ${k === "call" ? "Call" : "it"} logs ${k === "call" ? "the call" : "it as sent"}, so nobody gets it twice.</p>`;
     }
     return h + `</div></article>`;
   }
@@ -426,11 +429,22 @@
     if (ds.signout !== undefined) { auth.clear(); state.today = null; return renderSignIn("email"); }
     if (ds.restart !== undefined) return renderSignIn("email");
     if (ds.alert) return act("phone_alert", { p_id: ds.alert, p_status: ds.status }, null, "").then(() => sync(true));
-    if (ds.copy) {
-      const d = find(ds.copy);
-      const text = d.kind === "linkedin" ? parts(d).parts[Number(ds.part)]?.text : d.body;
-      try { await navigator.clipboard.writeText(text || ""); toast("Copied. Paste it in the note."); } catch { toast("Couldn't copy. Press and hold the text to copy it.", true); }
-      if (ds.open) window.open(ds.open, "_blank", "noopener");
+    if (ds.copy || ds.log) {
+      // Open the profile / WhatsApp / call right away, inside the tap: Safari blocks windows opened after an await.
+      if (ds.copy) {
+        const d = find(ds.copy);
+        const text = d.kind === "linkedin" ? parts(d).parts[Number(ds.part)]?.text : d.body;
+        const copied = navigator.clipboard?.writeText(text || "");
+        if (ds.open) window.open(ds.open, "_blank", "noopener");
+        try { await copied; if (!ds.log) toast("Copied. Paste it in the note."); }
+        catch { toast("Couldn't copy. Press and hold the text to copy it.", true); }
+      }
+      if (ds.log && !state.logging.has(ds.log)) {
+        const d = find(ds.log);
+        state.logging.add(ds.log);
+        const note = d?.kind === "call" ? "Logged as called." : d?.kind === "linkedin" ? "Copied and logged as sent. Paste it in the note." : "Logged as sent.";
+        act("phone_mark", { p_id: ds.log, p_op: "sent", p_body: null }, ds.log, note).finally(() => state.logging.delete(ds.log));
+      }
       return;
     }
     if (ds.edit) { state.editing.has(ds.edit) ? state.editing.delete(ds.edit) : state.editing.add(ds.edit); return draw(true); }
@@ -447,7 +461,6 @@
       state.armed = null;
       return act("phone_review", { p_id: ds.reject, p_decision: "rejected", p_subject: null, p_body: null, p_note: null }, ds.reject, "Rejected.");
     }
-    if (ds.sent) { b.disabled = true; return act("phone_mark", { p_id: ds.sent, p_op: "sent", p_body: null }, ds.sent, "Logged as sent.").finally(() => { b.disabled = false; }); }
     if (ds.skip) return act("phone_mark", { p_id: ds.skip, p_op: "skip", p_body: null }, ds.skip, "Skipped.");
   });
 
