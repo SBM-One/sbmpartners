@@ -1,4 +1,4 @@
--- 0011 · Autopilot (after 0010_reply_monitor, which files replies and bounces): the daily outreach run with no per-email approval.
+-- 0012 · Autopilot (after 0011_reply_monitor, which files replies and bounces): the daily outreach run with no per-email approval.
 --
 -- Scheduled Claude sessions do the work (Apollo for people, Gmail for sending and replies, Google Calendar for
 -- calls); this migration is the part they must not get wrong, written as fixed rules in the database:

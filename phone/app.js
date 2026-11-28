@@ -103,11 +103,13 @@
   }
 
   // ─────────────────────────── state ───────────────────────────
-  const state = { today: null, queue: null, inbox: null, loadedAt: null, editing: new Set(), logging: new Set(), done: new Map(), armed: null,
-    briefs: {}, findQ: "", found: null };
+  const state = { today: null, queue: null, inbox: null, ops: null, loadedAt: null, editing: new Set(), logging: new Set(), done: new Map(), armed: null,
+    briefs: {}, findQ: "", found: null, optin: null };
   async function load() {
-    const [today, queue, inbox] = await Promise.all([rpc("phone_today"), rpc("phone_queue"), rpc("phone_inbox")]);
-    Object.assign(state, { today, queue, inbox, loadedAt: new Date() });
+    // phone_ops is newer than the rest; the app still works on a database that doesn't have it yet.
+    const [today, queue, inbox, ops] = await Promise.all([rpc("phone_today"), rpc("phone_queue"), rpc("phone_inbox"),
+      rpc("phone_ops").catch(() => null)]);
+    Object.assign(state, { today, queue, inbox, ops, loadedAt: new Date() });
   }
 
   // ─────────────────────────── what each draft is ───────────────────────────
@@ -180,6 +182,7 @@
       + `${t.meetings_ready ? `, and <b>${num(t.meetings_ready)}</b> meeting brief${t.meetings_ready === 1 ? "" : "s"} ready` : ""}. `
       + `The agents have spent ${usd(t.spend?.spent)} of this month's ${usd(t.spend?.budget)}.</p>`;
     if (total) h += `<p class="acts"><a class="btn" href="#send">Start sending</a></p>`;
+    h += renderOps();
 
     if (q) {
       const meter = (label, n, of) => `<div class="meter"><span>${esc(label)}</span><span class="val">${num(n)} of ${esc(of)}</span>`
@@ -221,6 +224,26 @@
     }
     h += foot();
     return h;
+  }
+
+  // Is sending running, and can it be trusted right now? One switch stops everything that sends.
+  function renderOps() {
+    const o = state.ops;
+    if (!o) return "";
+    const paused = o.paused || o.autopilot_paused;
+    const why = o.paused ? o.pause_reason : o.autopilot_pause_reason;
+    const lines = [];
+    lines.push(`Emails out today: <b>${num(o.sent_today)}</b> of ${num(o.cap_today)}.`);
+    lines.push(o.monitor_fresh ? `Reply check ran ${esc(ago(o.monitor_last_run))}.`
+      : `<span class="alarm">Reply check last ran ${o.monitor_last_run ? esc(ago(o.monitor_last_run)) : "never"}; automatic emails wait until it runs.</span>`);
+    if (o.unconfirmed) lines.push(`<span class="alarm">${num(o.unconfirmed)} email${o.unconfirmed === 1 ? "" : "s"} may or may not have gone out; nothing more is sent until checked.</span>`);
+    if (o.identity_reviews) lines.push(`<span class="alarm">${num(o.identity_reviews)} repl${o.identity_reviews === 1 ? "y" : "ies"} from someone we didn't write to: see Alerts.</span>`);
+    let h = `<section class="section"><div class="sh"><h2>Sending</h2><span class="aside ${paused ? "alarm" : ""}">${paused ? "Paused" : "On"}</span></div>`;
+    if (paused) h += `<p>${esc(why || "Paused.")}${o.paused && o.paused_by ? ` <span class="sub">(${esc(o.paused_by)}, ${esc(ago(o.paused_at))})</span>` : ""}</p>`;
+    h += `<p class="sub">${lines.join(" ")}</p><div class="acts" style="margin-top:8px">`;
+    if (o.paused) h += `<button class="btn" data-pause="off">Resume sending</button>`;
+    else h += `<button class="link alarm" data-pause="on">${state.armed === "pause" ? "Tap again to pause all sending" : "Pause all sending"}</button>`;
+    return h + `</div></section>`;
   }
 
   function foot() {
@@ -280,7 +303,22 @@
           + `</div>`;
       });
     }
+    if (k !== "email" && d.delivery === "prepared") {
+      return h + `<p class="done-note">Opened ${esc(ago(d.prepared_at))}. Did it go out?</p><div class="acts">`
+        + `<button class="btn" data-confirm="${d.id}">${k === "call" ? "Yes, we spoke" : "Yes, sent"}</button>`
+        + `<button class="link quiet" data-notsent="${d.id}">${k === "call" ? "No answer" : "Not sent"}</button></div></article>`;
+    }
     if (blockers.length) h += `<div class="blockers">Not allowed yet:<ul>${blockers.map((b) => `<li>${esc(b)}</li>`).join("")}</ul></div>`;
+    if (k === "whatsapp" && !d.whatsapp_opt_in) {
+      if (state.optin === d.id) {
+        h += `<form class="part" data-form="optin" data-contact="${d.contact_id}"><h4>How did they agree to WhatsApp?</h4>`
+          + `<select name="source"><option value="buyer_wrote_first">They wrote to us on WhatsApp first</option>`
+          + `<option value="asked_on_call">They said yes on a call</option><option value="asked_by_email">They asked by email</option>`
+          + `<option value="form">They filled in a form</option></select>`
+          + `<input name="evidence" placeholder="Where can this be checked? (date, call note, message)" required>`
+          + `<div class="acts" style="margin-top:8px"><button class="btn" type="submit">Save</button><button class="link quiet" type="button" data-optin="">Cancel</button></div></form>`;
+      } else h += `<p class="acts"><button class="link" data-optin="${d.id}">They agreed to WhatsApp</button></p>`;
+    }
 
     h += `<div class="acts">`;
     if (k === "email") {
@@ -301,9 +339,9 @@
         const tel = telLink(d);
         h += tel ? `<a class="btn" href="${esc(tel)}" data-log="${d.id}">Call ${esc(prettyNumber(d.number))}</a>` : `<span class="sub alarm">No number on file</span>`;
       }
-      if (!off) h += `<button class="link" data-log="${d.id}">${k === "call" ? "Already called" : "Already sent it"}</button>`;
+      if (!off) h += `<button class="link" data-confirm="${d.id}">${k === "call" ? "Already called" : "Already sent it"}</button>`;
       h += `<button class="link quiet" data-skip="${d.id}">Skip</button>`;
-      if (!off) h += `<p class="count" style="flex-basis:100%">Tapping ${k === "call" ? "Call" : "it"} logs ${k === "call" ? "the call" : "it as sent"}, so nobody gets it twice.</p>`;
+      if (!off) h += `<p class="count" style="flex-basis:100%">Opening ${k === "call" ? "the call" : "it"} holds it for you; it counts as sent only when you tap ${k === "call" ? "Yes, we spoke" : "Yes, sent"}.</p>`;
     }
     return h + `</div></article>`;
   }
@@ -632,8 +670,11 @@
       if (ds.log && !state.logging.has(ds.log)) {
         const d = find(ds.log);
         state.logging.add(ds.log);
-        const note = d?.kind === "call" ? "Logged as called." : d?.kind === "linkedin" ? "Copied and logged as sent. Paste it in the note." : "Logged as sent.";
-        act("phone_mark", { p_id: ds.log, p_op: "sent", p_body: null }, ds.log, note).finally(() => state.logging.delete(ds.log));
+        // Opening the app is not sending: the message is held as "prepared" until you confirm it went out.
+        rpc("phone_mark", { p_id: ds.log, p_op: "opened", p_body: null })
+          .then(() => { if (d?.kind === "linkedin") toast("Copied. Paste it in the note, send it, then tap Yes, sent."); return sync(true); })
+          .catch((e) => toast(e.message.replace(/^Not allowed yet: /, "Not allowed yet. "), true))
+          .finally(() => state.logging.delete(ds.log));
       }
       return;
     }
@@ -652,6 +693,20 @@
       return act("phone_review", { p_id: ds.reject, p_decision: "rejected", p_subject: null, p_body: null, p_note: null }, ds.reject, "Rejected.");
     }
     if (ds.skip) return act("phone_mark", { p_id: ds.skip, p_op: "skip", p_body: null }, ds.skip, "Skipped.");
+    if (ds.confirm) {
+      const d = find(ds.confirm);
+      return act("phone_mark", { p_id: ds.confirm, p_op: "confirmed", p_body: null }, ds.confirm, d?.kind === "call" ? "Logged as called." : "Logged as sent.");
+    }
+    if (ds.notsent) return rpc("phone_mark", { p_id: ds.notsent, p_op: "not_sent", p_body: null }).then(() => sync(true))
+      .catch((e) => toast(e.message, true));
+    if (ds.optin !== undefined) { state.optin = ds.optin || null; return draw(true); }
+    if (ds.pause) {
+      if (ds.pause === "on" && state.armed !== "pause") { state.armed = "pause"; draw(true); setTimeout(() => { if (state.armed === "pause") { state.armed = null; draw(); } }, 4000); return; }
+      state.armed = null;
+      try { state.ops = await rpc("phone_pause", { p_on: ds.pause === "on", p_reason: null }); toast(ds.pause === "on" ? "All sending paused." : "Sending resumed."); draw(true); }
+      catch (e) { toast(e.message, true); }
+      return;
+    }
   });
 
   document.addEventListener("submit", async (ev) => {
@@ -659,6 +714,13 @@
     const f = ev.target;
     const btn = f.querySelector(".btn");
     btn.disabled = true;
+    if (f.dataset.form === "optin") {
+      try {
+        await rpc("phone_opt_in", { p_contact: f.dataset.contact, p_source: f.source.value, p_evidence: f.evidence.value });
+        state.optin = null; toast("Opt-in recorded."); await sync(true);
+      } catch (e) { toast(e.message, true); } finally { btn.disabled = false; }
+      return;
+    }
     try {
       if (f.dataset.form === "email") {
         const email = f.email.value.trim().toLowerCase();

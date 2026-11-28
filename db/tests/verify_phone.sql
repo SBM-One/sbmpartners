@@ -1,4 +1,4 @@
--- Checks the phone app's functions (0009_phone_app.sql): only people on the staff list get anything, the public
+-- Checks the phone app's functions (0009_phone_app.sql, 0016_operating_controls.sql): only people on the staff list get anything, the public
 -- key can't even call them, and the actions log what they should. Rolls back, so nothing is saved.
 -- Any failure stops with an error that starts with "PHONE CHECK FAILED".
 
@@ -52,13 +52,34 @@ begin
   if jsonb_typeof(phone_inbox() -> 'replies') <> 'array' then raise exception 'PHONE CHECK FAILED: phone_inbox() has no replies list'; end if;
 end $$;
 
--- 4) marking a WhatsApp message sent approves it, sends it and logs it as a WhatsApp message by staff
+-- 4) WhatsApp needs a recorded opt-in; opening the app only "prepares" it; tapping Sent records and logs it
 do $$ begin
-  if phone_mark('66666666-0000-0000-0000-0000000000f1', 'sent') <> 'sent' then raise exception 'PHONE CHECK FAILED: mark sent'; end if;
+  perform phone_mark('66666666-0000-0000-0000-0000000000f1', 'opened');
+  raise exception 'PHONE CHECK FAILED: a WhatsApp without opt-in could be opened';
+exception when raise_exception then
+  if sqlerrm like 'PHONE CHECK FAILED%' then raise; end if;
+end $$;
+do $$ begin
+  if phone_opt_in('55555555-0000-0000-0000-0000000000f9', 'asked_on_call', 'Call 27 Nov, she said WhatsApp is fine') <> 'recorded' then
+    raise exception 'PHONE CHECK FAILED: opt-in not recorded';
+  end if;
+  if phone_mark('66666666-0000-0000-0000-0000000000f1', 'opened') <> 'prepared' then raise exception 'PHONE CHECK FAILED: opened'; end if;
 end $$;
 reset role;
 do $$ begin
-  if (select status::text from outreach_drafts where id = '66666666-0000-0000-0000-0000000000f1') <> 'sent' then
+  if (select delivery from outreach_drafts where id = '66666666-0000-0000-0000-0000000000f1') <> 'prepared'
+     or exists (select 1 from interactions where metadata->>'draft_id' = '66666666-0000-0000-0000-0000000000f1') then
+    raise exception 'PHONE CHECK FAILED: opening the app must not log a send';
+  end if;
+end $$;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"email":"phone-test@sbm-test.example","role":"authenticated"}', true);
+do $$ begin
+  if phone_mark('66666666-0000-0000-0000-0000000000f1', 'confirmed') <> 'sent' then raise exception 'PHONE CHECK FAILED: confirm'; end if;
+end $$;
+reset role;
+do $$ begin
+  if (select status::text || delivery from outreach_drafts where id = '66666666-0000-0000-0000-0000000000f1') <> 'sentsent' then
     raise exception 'PHONE CHECK FAILED: the WhatsApp draft is not marked sent';
   end if;
   if not exists (select 1 from interactions where metadata->>'draft_id' = '66666666-0000-0000-0000-0000000000f1'

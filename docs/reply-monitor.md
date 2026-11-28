@@ -35,5 +35,5 @@ reader never runs. A scheduled Claude task reads the inbox instead:
 | `alerts` kinds `buyer_replied`, `email_bounced` | for the dashboard |
 | `monitor_runs` | one row per run |
 
-Functions: `db/migrations/0010_reply_monitor.sql` (applied to the live database 2026-11-26). Only the database
+Functions: `db/migrations/0011_reply_monitor.sql` (applied to the live database 2026-11-26). Only the database
 owner can call them, not the app or the public API.

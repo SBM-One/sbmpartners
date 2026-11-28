@@ -1,0 +1,63 @@
+# Nightly off-site backup of the live database, with a restore test every run.
+#   1. pg_dump of the public schema (tables, data, functions, policies, grants) + a row-count manifest
+#   2. restore into a throwaway PostgreSQL, compare row counts, run the privacy and sending-control checks
+#   3. keep the backup as an encrypted artifact (AES-256, passphrase in BACKUP_PASSPHRASE) for 30 days
+# Needs two repository secrets (Settings > Secrets and variables > Actions):
+#   SUPABASE_DB_URL     the Supabase "Session pooler" connection string, with the database password
+#   BACKUP_PASSPHRASE   a long passphrase; keep a copy outside GitHub (without it the backups can't be opened)
+# Restore by hand: docs/recovery-runbook.md
+name: Database backup
+on:
+  schedule:
+    - cron: "17 8 * * *"      # 02:17 Mexico City
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    services:
+      scratch:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: scratch
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the secrets are set
+        env:
+          DB: ${{ secrets.SUPABASE_DB_URL }}
+          PASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$DB" ] || [ -z "$PASS" ]; then
+            echo "::error::Add SUPABASE_DB_URL and BACKUP_PASSPHRASE in Settings > Secrets and variables > Actions."; exit 1
+          fi
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - name: Back up
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: scripts/db_backup.sh backup
+      - name: Restore test
+        env:
+          RESTORE_URL: postgres://postgres:scratch@localhost:5432/postgres
+        run: scripts/db_restore_check.sh backup/*.dump
+      - name: Encrypt
+        env:
+          PASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          cd backup
+          tar czf - sbm-* | gpg --batch --yes --pinentry-mode loopback --passphrase "$PASS" --symmetric --cipher-algo AES256 -o "sbm-backup-$(date -u +%Y%m%d).tar.gz.gpg"
+          rm -f sbm-*.dump sbm-*.tsv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbm-db-backup-${{ github.run_id }}
+          path: backup/*.gpg
+          retention-days: 30

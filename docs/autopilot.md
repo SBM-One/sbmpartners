@@ -44,5 +44,5 @@ Calls: offered in `autopilot_settings.availability` (Santiago confirmed weekdays
 checked against his Google Calendar (sbonillamadrid@gmail.com). The event goes on his calendar with the meeting brief in
 the description; the buyer gets the confirmation by email from santiago@sbmpartners.net.
 
-Database: `db/migrations/0011_autopilot.sql` (applied live 2026-11-26). Reply filing: `0010_reply_monitor.sql` and
+Database: `db/migrations/0012_autopilot.sql` (applied live 2026-11-26). Reply filing: `0011_reply_monitor.sql` and
 `docs/reply-monitor.md` (the reply monitor thread).
