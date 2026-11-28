@@ -116,7 +116,7 @@ MORNING STAGE (7:37 weekdays): follow-ups, research, first-touch drafts.
    - "Estimado/Estimada <nombre>:" (use the right gender only when obvious, else "Buen día, <nombre>:").
    - Line 1: who we are: equipo comercial de Santa Fe Rústicos, fabricante de muebles en Chipilo, Puebla, desde 1993.
    - 2–3 facts from the brief that fit THIS buyer (plant 20,000 m², 150 people, 75,000 pieces/year, modern/contemporary
-     line plus rustic line, private label, KD or assembled, barcodes/audits/CFDI, FSC; delivery CDMX & Cuernavaca;
+     line plus rustic line, private label, KD or assembled, barcodes/audits/CFDI, FSC;
      MOQ for export buyers only: one closed trailer with 20 pieces per model). Do NOT mention delivery cities, freight,
      a Mexican minimum or monthly volume numbers until their sales-pack items are no longer 'conflict'.
      Hotels/developers: mention custom pieces and volume.
