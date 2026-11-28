@@ -103,10 +103,13 @@
   }
 
   // ─────────────────────────── state ───────────────────────────
-  const state = { today: null, queue: null, inbox: null, loadedAt: null, editing: new Set(), logging: new Set(), done: new Map(), armed: null };
+  const state = { today: null, queue: null, inbox: null, ops: null, loadedAt: null, editing: new Set(), logging: new Set(), done: new Map(), armed: null,
+    briefs: {}, findQ: "", found: null, optin: null };
   async function load() {
-    const [today, queue, inbox] = await Promise.all([rpc("phone_today"), rpc("phone_queue"), rpc("phone_inbox")]);
-    Object.assign(state, { today, queue, inbox, loadedAt: new Date() });
+    // phone_ops is newer than the rest; the app still works on a database that doesn't have it yet.
+    const [today, queue, inbox, ops] = await Promise.all([rpc("phone_today"), rpc("phone_queue"), rpc("phone_inbox"),
+      rpc("phone_ops").catch(() => null)]);
+    Object.assign(state, { today, queue, inbox, ops, loadedAt: new Date() });
   }
 
   // ─────────────────────────── what each draft is ───────────────────────────
@@ -179,6 +182,7 @@
       + `${t.meetings_ready ? `, and <b>${num(t.meetings_ready)}</b> meeting brief${t.meetings_ready === 1 ? "" : "s"} ready` : ""}. `
       + `The agents have spent ${usd(t.spend?.spent)} of this month's ${usd(t.spend?.budget)}.</p>`;
     if (total) h += `<p class="acts"><a class="btn" href="#send">Start sending</a></p>`;
+    h += renderOps();
 
     if (q) {
       const meter = (label, n, of) => `<div class="meter"><span>${esc(label)}</span><span class="val">${num(n)} of ${esc(of)}</span>`
@@ -220,6 +224,26 @@
     }
     h += foot();
     return h;
+  }
+
+  // Is sending running, and can it be trusted right now? One switch stops everything that sends.
+  function renderOps() {
+    const o = state.ops;
+    if (!o) return "";
+    const paused = o.paused || o.autopilot_paused;
+    const why = o.paused ? o.pause_reason : o.autopilot_pause_reason;
+    const lines = [];
+    lines.push(`Emails out today: <b>${num(o.sent_today)}</b> of ${num(o.cap_today)}.`);
+    lines.push(o.monitor_fresh ? `Reply check ran ${esc(ago(o.monitor_last_run))}.`
+      : `<span class="alarm">Reply check last ran ${o.monitor_last_run ? esc(ago(o.monitor_last_run)) : "never"}; automatic emails wait until it runs.</span>`);
+    if (o.unconfirmed) lines.push(`<span class="alarm">${num(o.unconfirmed)} email${o.unconfirmed === 1 ? "" : "s"} may or may not have gone out; nothing more is sent until checked.</span>`);
+    if (o.identity_reviews) lines.push(`<span class="alarm">${num(o.identity_reviews)} repl${o.identity_reviews === 1 ? "y" : "ies"} from someone we didn't write to: see Alerts.</span>`);
+    let h = `<section class="section"><div class="sh"><h2>Sending</h2><span class="aside ${paused ? "alarm" : ""}">${paused ? "Paused" : "On"}</span></div>`;
+    if (paused) h += `<p>${esc(why || "Paused.")}${o.paused && o.paused_by ? ` <span class="sub">(${esc(o.paused_by)}, ${esc(ago(o.paused_at))})</span>` : ""}</p>`;
+    h += `<p class="sub">${lines.join(" ")}</p><div class="acts" style="margin-top:8px">`;
+    if (o.paused) h += `<button class="btn" data-pause="off">Resume sending</button>`;
+    else h += `<button class="link alarm" data-pause="on">${state.armed === "pause" ? "Tap again to pause all sending" : "Pause all sending"}</button>`;
+    return h + `</div></section>`;
   }
 
   function foot() {
@@ -279,7 +303,22 @@
           + `</div>`;
       });
     }
+    if (k !== "email" && d.delivery === "prepared") {
+      return h + `<p class="done-note">Opened ${esc(ago(d.prepared_at))}. Did it go out?</p><div class="acts">`
+        + `<button class="btn" data-confirm="${d.id}">${k === "call" ? "Yes, we spoke" : "Yes, sent"}</button>`
+        + `<button class="link quiet" data-notsent="${d.id}">${k === "call" ? "No answer" : "Not sent"}</button></div></article>`;
+    }
     if (blockers.length) h += `<div class="blockers">Not allowed yet:<ul>${blockers.map((b) => `<li>${esc(b)}</li>`).join("")}</ul></div>`;
+    if (k === "whatsapp" && !d.whatsapp_opt_in) {
+      if (state.optin === d.id) {
+        h += `<form class="part" data-form="optin" data-contact="${d.contact_id}"><h4>How did they agree to WhatsApp?</h4>`
+          + `<select name="source"><option value="buyer_wrote_first">They wrote to us on WhatsApp first</option>`
+          + `<option value="asked_on_call">They said yes on a call</option><option value="asked_by_email">They asked by email</option>`
+          + `<option value="form">They filled in a form</option></select>`
+          + `<input name="evidence" placeholder="Where can this be checked? (date, call note, message)" required>`
+          + `<div class="acts" style="margin-top:8px"><button class="btn" type="submit">Save</button><button class="link quiet" type="button" data-optin="">Cancel</button></div></form>`;
+      } else h += `<p class="acts"><button class="link" data-optin="${d.id}">They agreed to WhatsApp</button></p>`;
+    }
 
     h += `<div class="acts">`;
     if (k === "email") {
@@ -300,9 +339,9 @@
         const tel = telLink(d);
         h += tel ? `<a class="btn" href="${esc(tel)}" data-log="${d.id}">Call ${esc(prettyNumber(d.number))}</a>` : `<span class="sub alarm">No number on file</span>`;
       }
-      if (!off) h += `<button class="link" data-log="${d.id}">${k === "call" ? "Already called" : "Already sent it"}</button>`;
+      if (!off) h += `<button class="link" data-confirm="${d.id}">${k === "call" ? "Already called" : "Already sent it"}</button>`;
       h += `<button class="link quiet" data-skip="${d.id}">Skip</button>`;
-      if (!off) h += `<p class="count" style="flex-basis:100%">Tapping ${k === "call" ? "Call" : "it"} logs ${k === "call" ? "the call" : "it as sent"}, so nobody gets it twice.</p>`;
+      if (!off) h += `<p class="count" style="flex-basis:100%">Opening ${k === "call" ? "the call" : "it"} holds it for you; it counts as sent only when you tap ${k === "call" ? "Yes, we spoke" : "Yes, sent"}.</p>`;
     }
     return h + `</div></article>`;
   }
@@ -319,6 +358,7 @@
     let s = said.length ? join(said) + "." : ib.replies.length ? "No new replies in the last two days." : "No replies yet.";
     s = s.charAt(0).toUpperCase() + s.slice(1);
     h += `<h1 class="statement">${esc(s)}</h1>`;
+    h += `<p class="acts"><a class="btn line" href="#brief">Prepare for a call</a></p>`;
 
     if (ib.meetings.length) {
       h += `<section class="section"><div class="sh"><h2>Meetings<span class="n">${ib.meetings.length}</span></h2><span class="aside">${num(booked.length)} booked</span></div>`;
@@ -327,8 +367,8 @@
         h += `<div class="row reply"><span class="lead">${m.status === "booked" ? esc(m.meeting_at ? shortDay(m.meeting_at) + "\n" + clock(m.meeting_at) : "Booked") : "Ready"}</span><div>`
           + `<div class="name">${esc(who)}</div><div class="sub">${esc([m.contact_title, m.client ? "for " + m.client : null].filter(Boolean).join(", "))}</div>`
           + (m.interest ? `<p class="summary">${esc(m.interest)}</p>` : "")
-          + `<details><summary>Read the brief</summary><p class="text" style="white-space:pre-wrap">${esc(m.body)}</p></details>`
-          + `<div class="acts" style="margin-top:6px">${m.email ? `<a class="link" href="mailto:${esc(m.email)}">Email</a>` : ""}`
+          + `<details><summary>Read the meeting brief</summary><p class="text" style="white-space:pre-wrap">${esc(m.body)}</p></details>`
+          + `<div class="acts" style="margin-top:6px">${m.contact_id ? `<a class="link" href="#brief/${esc(m.contact_id)}">Call brief</a>` : ""}${m.email ? `<a class="link" href="mailto:${esc(m.email)}">Email</a>` : ""}`
           + `${m.phone ? `<a class="link" href="tel:${esc(m.phone.replace(/[^\d+]/g, ""))}">Call</a>` : ""}`
           + `${m.linkedin_url ? `<a class="link" href="${esc(m.linkedin_url)}" target="_blank" rel="noopener noreferrer">LinkedIn</a>` : ""}</div>`
           + `</div></div>`;
@@ -345,11 +385,194 @@
         + (r.category ? `<div class="sub">${esc(r.category.replace(/_/g, " "))}${r.client ? ", for " + esc(r.client) : ""}</div>` : "")
         + (r.summary ? `<p class="summary">${esc(r.summary)}</p>` : "")
         + (r.body ? `<details><summary>${r.subject ? esc(r.subject) : "Their message"}</summary><p class="text" style="white-space:pre-wrap">${esc(r.body)}</p></details>` : "")
-        + (r.answer_waiting ? `<div class="acts" style="margin-top:6px"><a class="link" href="#send/email">Our answer is waiting</a></div>` : "")
+        + `<div class="acts" style="margin-top:6px">${r.answer_waiting ? `<a class="link" href="#send/email">Our answer is waiting</a>` : ""}`
+        + `${r.contact_id ? `<a class="link quiet" href="#brief/${esc(r.contact_id)}">Call brief</a>` : ""}</div>`
         + `</div></div>`;
     }
     return h + `</section>` + foot();
   }
+
+  // ─────────────────────────── call brief ───────────────────────────
+  // One page per buyer for a booked call: who they are, what we sent and what they said, then the client's call kit
+  // (cheat sheet, hard questions, script). Opened from a meeting or reply, or by searching for the buyer.
+  const txt = (v) => v == null ? "" : Array.isArray(v) ? v.map(txt).filter(Boolean).join("; ")
+    : typeof v === "object" ? Object.values(v).map(txt).filter(Boolean).join(": ") : String(v);
+  const fullName = (c) => [c?.first_name, c?.last_name].filter(Boolean).join(" ");
+  const fact = (label, value, html) => (value == null || value === "" || (Array.isArray(value) && !value.length)) ? ""
+    : `<div class="row"><span class="lead">${esc(label)}</span><div class="text">${html ? value : esc(txt(value))}</div></div>`;
+  const ext = (url) => /^https?:\/\//i.test(url) ? url : "https://" + url;
+  const SAID = { sent: "We sent", reply: "They replied", call: "Call", voicemail: "Voicemail", meeting_booked: "Meeting booked",
+    meeting_held: "Meeting held", sample_sent: "Samples sent", quote_sent: "Quote sent", order: "Order", reorder: "Reorder", note: "Note",
+    opened: "Opened", clicked: "Clicked", bounce: "Bounced", unsubscribe: "Unsubscribed" };
+
+  async function openBrief(id) {
+    if (state.briefs[id]?.loading) return;
+    state.briefs[id] = { loading: true };
+    try { state.briefs[id] = { data: await rpc("phone_brief", { p_contact: id }) }; }
+    catch (e) { state.briefs[id] = { error: e.message }; }
+    if (route().tab === "brief" && route().filter === id) draw(true);
+  }
+
+  function renderBrief(id) {
+    const got = state.briefs[id];
+    if (!got || got.loading) { if (!got) openBrief(id); return top("Call brief") + `<p class="empty">Loading the brief…</p>`; }
+    if (got.error) return top("Call brief") + `<p class="empty">Couldn't load it: ${esc(got.error)}</p><p class="acts"><a class="link" href="#brief">Search for a buyer</a></p>`;
+    const b = got.data, co = b.company || {}, c = b.contact || {}, m = b.meeting, s = b.strategy, kit = b.kit;
+    const person = fullName(c) || "the buyer";
+    const fill = (line) => String(line).replace(/\{contacto\}/g, fullName(c) ? c.first_name || fullName(c) : "").replace(/\{empresa\}/g, co.name || "su empresa")
+      .replace(/ ,/g, ",").replace(/,\s*\./g, ".");
+    const phone = c.phone || co.phone;
+    const wa = (c.whatsapp || c.phone || "").replace(/\D/g, "");
+
+    let h = top(b.client ? `Call brief · ${b.client}` : "Call brief");
+    h += `<p class="acts" style="margin-top:12px"><a class="link quiet" href="#inbox">Back to replies</a><a class="link quiet" href="#brief">Another buyer</a>${b.kit?.flow?.length ? `<button class="link" data-jump="paso-1">Go to the script</button>` : ""}</p>`;
+    h += `<h1 class="statement" style="margin-top:14px">${esc(fullName(c) ? `Call with ${person}${co.name ? ", " + co.name : ""}.` : `Call with ${co.name || "the buyer"}.`)}</h1>`;
+    const when = m?.meeting_at ? `Booked for ${dayName(m.meeting_at)}, ${clock(m.meeting_at)}.` : m?.status === "ready" ? "Ready for a meeting; no time booked yet." : "";
+    const where = [co.hq_city, co.hq_state].filter(Boolean).join(", ");
+    h += `<p class="standfirst">${esc([c.title, where, when, m?.meeting_note].filter(Boolean).join(". ").replace(/\.\./g, "."))}</p>`;
+    h += `<div class="acts">${phone ? `<a class="btn" href="tel:${esc(phone.replace(/[^\d+]/g, ""))}">Call</a>` : ""}`
+      + `${wa.length >= 10 ? `<a class="btn line" href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener noreferrer">WhatsApp</a>` : ""}`
+      + `${c.email ? `<a class="link" href="mailto:${esc(c.email)}">Email</a>` : ""}`
+      + `${c.linkedin_url ? `<a class="link" href="${esc(c.linkedin_url)}" target="_blank" rel="noopener noreferrer">LinkedIn</a>` : ""}</div>`;
+
+    if (kit?.rules?.length) {
+      h += `<section class="section"><div class="sh"><h2>Never on this call</h2></div><ul class="rules">${kit.rules.map((r) => `<li>${esc(r)}</li>`).join("")}</ul></section>`;
+    }
+
+    // 1. the buyer
+    const stores = co.store_count ?? co.denue_branches;
+    h += `<section class="section"><div class="sh"><h2>The buyer</h2><span class="aside">${esc(co.name || "")}</span></div>`
+      + fact("Company", co.name) + fact("Type", co.type && co.type !== "other" ? co.type.replace(/_/g, " ") : null)
+      + fact("Stores", stores != null ? `${num(stores)}${co.store_count == null ? " branches (INEGI)" : ""}` : null)
+      + fact("Where", where || null) + fact("States", co.denue_states) + fact("Staff", co.denue_people_est)
+      + fact("Sells", co.categories) + fact("Style", co.style_tags) + fact("Price tier", co.price_tier) + fact("Segment", co.segment)
+      + fact("Website", co.website ? `<a class="link" href="${esc(ext(co.website))}" target="_blank" rel="noopener noreferrer">${esc(co.website.replace(/^https?:\/\//, ""))}</a>` : null, true)
+      + fact("Lead score", co.lead_score != null ? `${co.lead_score}${co.score_rationale ? ". " + co.score_rationale : ""}` : null)
+      + fact("Notes", co.notes)
+      + `</section>`;
+    h += `<section class="section"><div class="sh"><h2>The person</h2><span class="aside">${esc(c.is_decision_maker ? "Decision maker" : "")}</span></div>`
+      + fact("Name", fullName(c) || null) + fact("Role", c.title) + fact("Email", c.email) + fact("Phone", c.phone) + fact("WhatsApp", c.whatsapp)
+      + fact("Research", c.research_notes) + fact("Why them", c.score_rationale)
+      + (b.colleagues?.length ? fact("Also there", b.colleagues.map((o) => [o.name, o.title].filter(Boolean).join(", ")).filter(Boolean)) : "")
+      + `</section>`;
+
+    if (s) {
+      h += `<section class="section"><div class="sh"><h2>Our angle</h2><span class="aside">Fit ${esc(s.fit_score)} of 100</span></div>`
+        + fact("Pitch", s.pitch_angle) + fact("Lead with", s.lead_with) + fact("Proof", s.proof_points) + fact("Offer", s.offer)
+        + fact("Ask for", s.first_ask) + `</section>`;
+    }
+    if (m) {
+      h += `<section class="section"><div class="sh"><h2>Meeting brief</h2><span class="aside">${esc(m.status)}</span></div>`
+        + fact("Interest", m.interest) + fact("Fit", m.product_fit) + fact("Open questions", m.open_questions) + fact("Next steps", m.next_steps)
+        + (m.body ? `<details><summary>Read the full brief</summary><p class="text" style="white-space:pre-wrap">${esc(m.body)}</p></details>` : "")
+        + `</section>`;
+    }
+
+    // 2. what we sent and what they said
+    const hist = b.history || [];
+    h += `<section class="section"><div class="sh"><h2>What we sent, what they said<span class="n">${hist.length}</span></h2><span class="aside">Oldest first</span></div>`;
+    if (!hist.length) h += `<p class="empty">Nothing logged with this buyer yet.</p>`;
+    for (const x of hist) {
+      const them = x.direction === "inbound";
+      h += `<div class="row reply"><span class="lead" style="white-space:pre-line">${esc(shortDay(x.at))}\n${esc(KIND[x.channel] || x.channel.charAt(0).toUpperCase() + x.channel.slice(1))}</span><div>`
+        + `<div class="name" style="font-size:15px${them ? ";color:var(--aegean)" : ""}">${esc(SAID[x.kind] || x.kind)}${x.subject ? ": " + esc(x.subject) : ""}</div>`
+        + (x.summary ? `<p class="summary">${esc(x.summary)}</p>` : "")
+        + (x.body ? (them && !x.summary ? `<p class="text" style="white-space:pre-wrap">${esc(x.body)}</p>`
+          : `<details><summary>${them ? "Their words" : ["sent", "reply"].includes(x.kind) ? "What we wrote" : "Details"}</summary><p class="text" style="white-space:pre-wrap">${esc(x.body)}</p></details>`) : "")
+        + `</div></div>`;
+    }
+    for (const d of b.waiting || []) {
+      h += `<div class="row reply"><span class="lead">Waiting\n${esc(KIND[d.kind] || d.kind)}</span><div><div class="name" style="font-size:15px">Not sent yet${d.subject ? ": " + esc(d.subject) : ""}</div>`
+        + `<details><summary>The draft</summary><p class="text" style="white-space:pre-wrap">${esc(d.body)}</p></details></div></div>`;
+    }
+    h += `</section>`;
+
+    if (!kit) return h + `<p class="empty" style="margin-top:28px">No call kit for ${esc(b.client || "this client")} yet.</p>` + foot();
+
+    // 3. the client's cheat sheet
+    h += `<section class="section"><div class="sh"><h2>${esc(kit.title || b.client)}, at a glance</h2><span class="aside">${esc(kit.updated ? "Updated " + kit.updated : "")}</span></div>`;
+    for (const g of kit.facts || []) {
+      h += `<h3 class="kit-h">${esc(g.heading)}</h3>` + (g.items || []).map(([k, v]) => fact(k, v)).join("");
+    }
+    h += `</section>`;
+
+    // 4. hard questions
+    h += `<section class="section"><div class="sh"><h2>Hard questions<span class="n">${(kit.objections || []).length}</span></h2><span class="aside">Tap to open</span></div>`;
+    for (const o of kit.objections || []) {
+      h += `<details class="qa"><summary>“${esc(o.q)}”</summary><p class="text">${esc(fill(o.a))}</p>${o.proof ? `<p class="sub">${esc(o.proof)}</p>` : ""}</details>`;
+    }
+    h += `</section>`;
+
+    // 5. the script: numbered steps to read top to bottom; each likely answer says what to say and which step is next
+    if (kit.flow?.length) {
+      h += `<section class="section"><div class="sh"><h2>Call script</h2><span class="aside">Read it word for word</span></div>`
+        + `<p class="sub" style="margin-top:10px">Say the lines in the box. Then find their answer below it and follow the arrow.</p>`;
+      for (const st of kit.flow) {
+        h += `<div class="step" id="paso-${esc(st.n)}"><h3 class="kit-h"><span class="sn">${esc(st.n)}</span>${esc(st.title)}</h3>`
+          + `<div class="say">${(st.say || []).map((l) => `<p>${esc(fill(l))}</p>`).join("")}</div>`
+          + `<ul class="branches">${(st.branches || []).map((br) => {
+            const ob = br.obj != null ? (kit.objections || [])[br.obj] : null;
+            return `<li><div class="if">Si dice: ${esc(br.if)}</div>`
+              + (ob ? `<p class="reply-line">“${esc(fill(ob.a))}”</p>` : "")
+              + (br.say ? `<p class="reply-line">“${esc(fill(br.say))}”</p>` : "")
+              + (br.note ? `<p class="sub">${esc(br.note)}</p>` : "")
+              + (br.go ? `<button class="link" data-jump="paso-${esc(br.go)}">${br.go === st.n ? "Repite este paso" : br.go === st.n + 1 ? `Sigue al paso ${esc(br.go)}` : `Salta al paso ${esc(br.go)}`}</button>`
+                : `<span class="sub">Fin de la llamada.</span>`)
+              + `</li>`;
+          }).join("")}</ul></div>`;
+      }
+      h += `</section>`;
+    } else if (kit.script?.length) {
+      h += `<section class="section"><div class="sh"><h2>Call script</h2><span class="aside">Español</span></div>`;
+      for (const st of kit.script) {
+        h += `<div class="stage"><h3 class="kit-h">${esc(st.stage)}</h3>${st.goal ? `<p class="sub">${esc(st.goal)}</p>` : ""}`
+          + `<ol>${(st.lines || []).map((l) => `<li>${esc(fill(l))}</li>`).join("")}</ol></div>`;
+      }
+      h += `</section>`;
+    }
+    if (kit.pending?.length) {
+      h += `<section class="section"><div class="sh"><h2>Still missing</h2></div><ul class="rules quiet">${kit.pending.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></section>`;
+    }
+    return h + foot();
+  }
+
+  function renderFind() {
+    let h = top("Call brief");
+    h += `<h1 class="statement">Who is the call with?</h1>`
+      + `<p class="standfirst">Type a person or a company. The brief has the buyer, everything we sent and they said, the cheat sheet and the script.</p>`
+      + `<div class="find"><input id="find" type="search" placeholder="Name or company" autocomplete="off" value="${esc(state.findQ || "")}"></div>`
+      + `<div id="found">${renderFound()}</div>`;
+    const soon = (state.inbox?.meetings || []);
+    if (soon.length && !state.findQ) {
+      h += `<section class="section"><div class="sh"><h2>Meetings</h2></div>`
+        + soon.map((m) => `<a class="row" href="#brief/${esc(m.contact_id)}"><span class="lead" style="white-space:pre-line">${esc(m.meeting_at ? shortDay(m.meeting_at) + "\n" + clock(m.meeting_at) : "Ready")}</span>`
+          + `<div><div class="name">${esc([m.contact, m.company].filter(Boolean).join(", "))}</div><div class="sub">Open the brief</div></div></a>`).join("")
+        + `</section>`;
+    }
+    return h + foot();
+  }
+  function renderFound() {
+    const r = state.found;
+    if (!state.findQ || state.findQ.trim().length < 2) return "";
+    if (!r) return `<p class="empty">Looking…</p>`;
+    if (!r.length) return `<p class="empty">No buyer matches “${esc(state.findQ)}”.</p>`;
+    return r.map((x) => `<a class="row" href="#brief/${esc(x.id)}"><span class="lead">${x.meeting ? "Meeting" : ""}</span><div>`
+      + `<div class="name">${esc(x.contact || x.company || "(no name)")}</div><div class="sub">${esc([x.contact ? x.company : null, x.title, x.city].filter(Boolean).join(", "))}</div></div></a>`).join("");
+  }
+  let findTimer;
+  document.addEventListener("input", (ev) => {
+    if (ev.target.id !== "find") return;
+    state.findQ = ev.target.value;
+    state.found = null;
+    clearTimeout(findTimer);
+    const q = state.findQ;
+    document.getElementById("found").innerHTML = renderFound();
+    if (q.trim().length < 2) return;
+    findTimer = setTimeout(async () => {
+      try { const r = await rpc("phone_find", { p_q: q }); if (state.findQ === q) { state.found = r; document.getElementById("found").innerHTML = renderFound(); } }
+      catch (e) { toast(e.message, true); }
+    }, 250);
+  });
 
   function renderSignIn(step, email, err) {
     $tabs.hidden = true;
@@ -371,24 +594,28 @@
   // ─────────────────────────── routing and drawing ───────────────────────────
   const route = () => {
     const [tab, filter] = (location.hash.replace(/^#/, "") || "today").split("/");
-    return { tab: ["today", "send", "inbox"].includes(tab) ? tab : "today", filter };
+    return { tab: ["today", "send", "inbox", "brief"].includes(tab) ? tab : "today", filter };
   };
   function draw(force) {
     if (!state.today) return;
     // Never redraw under your thumb while you are editing a draft.
     if (!force && state.editing.size && document.activeElement?.matches("textarea, input")) return;
     const { tab, filter } = route();
+    // A brief is read during a call: the 30-second refresh must not close what you opened or move the page.
+    if (!force && tab === "brief" && $app.dataset.tab === "brief") return;
     $tabs.hidden = false;
     const c = waitingCounts();
     const total = c.linkedin + c.whatsapp + c.call + c.email + c.other;
     const replies = (state.inbox?.replies || []).filter((r) => Date.now() - new Date(r.occurred_at) < 86400000 * 2).length
       + (state.inbox?.meetings || []).filter((m) => m.status === "ready").length;
     for (const a of $tabs.querySelectorAll("a")) {
-      a.classList.toggle("on", a.dataset.tab === tab);
+      a.classList.toggle("on", a.dataset.tab === (tab === "brief" ? "inbox" : tab));
       const n = a.dataset.tab === "send" ? total : a.dataset.tab === "inbox" ? replies : 0;
       a.innerHTML = esc(a.textContent.replace(/\d+$/, "")) + (n ? `<sup>${n}</sup>` : "");
     }
-    $app.innerHTML = tab === "send" ? renderSend(filter) : tab === "inbox" ? renderInbox() : renderToday();
+    $app.dataset.tab = tab;
+    $app.innerHTML = tab === "send" ? renderSend(filter) : tab === "inbox" ? renderInbox()
+      : tab === "brief" ? (filter ? renderBrief(filter) : renderFind()) : renderToday();
   }
 
   async function sync(force) {
@@ -426,6 +653,7 @@
     const b = ev.target.closest("button, a");
     if (!b) return;
     const ds = b.dataset;
+    if (ds.jump) { const el = document.getElementById(ds.jump); if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("hit"); setTimeout(() => el.classList.remove("hit"), 1200); } return; }
     if (ds.signout !== undefined) { auth.clear(); state.today = null; return renderSignIn("email"); }
     if (ds.restart !== undefined) return renderSignIn("email");
     if (ds.alert) return act("phone_alert", { p_id: ds.alert, p_status: ds.status }, null, "").then(() => sync(true));
@@ -442,8 +670,11 @@
       if (ds.log && !state.logging.has(ds.log)) {
         const d = find(ds.log);
         state.logging.add(ds.log);
-        const note = d?.kind === "call" ? "Logged as called." : d?.kind === "linkedin" ? "Copied and logged as sent. Paste it in the note." : "Logged as sent.";
-        act("phone_mark", { p_id: ds.log, p_op: "sent", p_body: null }, ds.log, note).finally(() => state.logging.delete(ds.log));
+        // Opening the app is not sending: the message is held as "prepared" until you confirm it went out.
+        rpc("phone_mark", { p_id: ds.log, p_op: "opened", p_body: null })
+          .then(() => { if (d?.kind === "linkedin") toast("Copied. Paste it in the note, send it, then tap Yes, sent."); return sync(true); })
+          .catch((e) => toast(e.message.replace(/^Not allowed yet: /, "Not allowed yet. "), true))
+          .finally(() => state.logging.delete(ds.log));
       }
       return;
     }
@@ -462,6 +693,20 @@
       return act("phone_review", { p_id: ds.reject, p_decision: "rejected", p_subject: null, p_body: null, p_note: null }, ds.reject, "Rejected.");
     }
     if (ds.skip) return act("phone_mark", { p_id: ds.skip, p_op: "skip", p_body: null }, ds.skip, "Skipped.");
+    if (ds.confirm) {
+      const d = find(ds.confirm);
+      return act("phone_mark", { p_id: ds.confirm, p_op: "confirmed", p_body: null }, ds.confirm, d?.kind === "call" ? "Logged as called." : "Logged as sent.");
+    }
+    if (ds.notsent) return rpc("phone_mark", { p_id: ds.notsent, p_op: "not_sent", p_body: null }).then(() => sync(true))
+      .catch((e) => toast(e.message, true));
+    if (ds.optin !== undefined) { state.optin = ds.optin || null; return draw(true); }
+    if (ds.pause) {
+      if (ds.pause === "on" && state.armed !== "pause") { state.armed = "pause"; draw(true); setTimeout(() => { if (state.armed === "pause") { state.armed = null; draw(); } }, 4000); return; }
+      state.armed = null;
+      try { state.ops = await rpc("phone_pause", { p_on: ds.pause === "on", p_reason: null }); toast(ds.pause === "on" ? "All sending paused." : "Sending resumed."); draw(true); }
+      catch (e) { toast(e.message, true); }
+      return;
+    }
   });
 
   document.addEventListener("submit", async (ev) => {
@@ -469,6 +714,13 @@
     const f = ev.target;
     const btn = f.querySelector(".btn");
     btn.disabled = true;
+    if (f.dataset.form === "optin") {
+      try {
+        await rpc("phone_opt_in", { p_contact: f.dataset.contact, p_source: f.source.value, p_evidence: f.evidence.value });
+        state.optin = null; toast("Opt-in recorded."); await sync(true);
+      } catch (e) { toast(e.message, true); } finally { btn.disabled = false; }
+      return;
+    }
     try {
       if (f.dataset.form === "email") {
         const email = f.email.value.trim().toLowerCase();
@@ -486,7 +738,12 @@
     } finally { btn.disabled = false; }
   });
 
-  window.addEventListener("hashchange", () => { if (state.today) { draw(true); scrollTo(0, 0); } });
+  window.addEventListener("hashchange", () => {
+    if (!state.today) return;
+    const { tab, filter } = route();
+    if (tab === "brief" && filter && state.briefs[filter]?.data) { delete state.briefs[filter]; }  // fresh each time you open it
+    draw(true); scrollTo(0, 0);
+  });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && state.today) sync(); });
   setInterval(() => { if (!document.hidden && state.today) sync(); }, REFRESH_SECONDS * 1000);
 

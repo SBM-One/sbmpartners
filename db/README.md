@@ -10,6 +10,20 @@ One source of truth. Tools, agents, the supervisor and dashboards all read and w
 | `migrations/0004_client_portal.sql` | Two read-only views for the client portal (pipeline and activity), showing only safe columns and only the client's own rows. |
 | `migrations/0005_first_sends.sql` | The first real sends: each buyer's country, legal basis and email source; email rules per country (confirmed by a person); the safety gate `send_blockers()` that the database enforces on every approval and send; `stop_contact()` and the suppression list; the mailbox (daily cap, sending window); fact-sheet approval; follow-up rhythm per campaign. |
 | `migrations/0006_qualify_and_handoff.sql` | Qualification & Strategy and the meeting handoff: `prospect_strategies` (fit score 0-100, pursue / nurture / disqualify, pitch and channel for each buyer), what each draft is for (`purpose`: first, follow_up, reply, check_in), `apply_reply()` (what a reply changes, including the "not now" snooze), `meeting_handoffs` with `book_meeting()` and `close_meeting()`, and the tracker views `v_conversations` and `v_meetings`. The safety gate now also refuses a first message to a buyer not marked "pursue", and any automatic message once a buyer is handed to you for a meeting. |
+| `migrations/0010_call_brief.sql` | The call brief in the phone app: `call_kits` (each client's cheat sheet, hard-question answers and call script, staff only), `phone_brief()` (one buyer's brief with the history both ways) and `phone_find()` (search buyers). |
+| `seed/call_kit_santa_fe_rusticos.sql` | Santa Fe Rústicos' call kit. Real client facts: load it into the real project; re-running replaces the kit. |
+| `tests/verify_brief.sql` | Checks the call brief: only staff can open a brief or search, the public key can't read kits, and a brief carries the buyer, history and kit. Rolls back. |
+| `migrations/0007`–`0009` | The three agents with by-hand LinkedIn/WhatsApp (`v_manual_sends`), the research quota (`research_checks`), and the phone app functions (`phone_today()` and friends). |
+| `migrations/0011_reply_monitor.sql` | The hourly reply monitor: `monitor_runs` (every run, including runs that found nothing), matching replies to buyers, answers and handoffs. |
+| `migrations/0012_autopilot.sql` | The send autopilot: settings, daily-cap ramp, copy checks (`autopilot_lint`), claim / mark sent / failed, daily summary. |
+| `migrations/0013_phone_send_log.sql` | A by-hand message marked in the phone app is written to the activity log. |
+| `migrations/0014_mx_lead_research.sql` | Columns, views and loader for the Mexican lead research that existed only on the live project until 2026-11-28. |
+| `migrations/0015_security_hardening.sql` | No function is callable with the public key except the unsubscribe link and the portal helper; signed-in staff get only the phone functions. |
+| `migrations/0016_operating_controls.sql` | Sending controls: delivery states (not sent / prepared / attempted / sent / failed / uncertain), send-time re-check (`autopilot_send_check`), claim under lock, reconcile before retry, per-language caps, one first email per company per day, account holds after any reply, identity review for unknown senders, WhatsApp opt-in, global pause (`ops_pause` / `ops_resume`), health alerts (`ops_check`), scheduling-only auto replies, the sales pack (`sales_pack_items`) and its copy checks, demo clients kept out of reporting. |
+| `migrations/0017_growth_crm.sql` | Growth programs A–J and their status per client, the 10-stage pipeline with evidence (`deal_move`), orders (counted once, by kind), existing-account concentration, partners, referrals, recovery, inbound, supplier onboarding, events, offers, experiments, responsibilities, inputs needed, effort and spend logs, and the scorecard view `v_scorecard`. |
+| `migrations/0018_access_tightening.sql` | The public key can read no table at all; fixed search path on every function. |
+| `seed/growth_santa_fe_rusticos.sql` | Santa Fe Rústicos' sales pack (with conflicts and gaps marked), program statuses, responsibilities, inputs needed, offer ideas and experiments. Real client facts. |
+| `tests/verify_controls.sql` | Checks the sending controls: claim once, cap, pause, reconcile, account holds, identity review, sales-pack holds, opt-in. Rolls back. |
 | `seed/pilot_example.sql` | Made-up pilot data for testing. Don't load in production. |
 | `tests/verify_privacy.sql` | Checks the privacy rules with throwaway test logins. Rolls back, so it saves nothing. |
 | `tests/verify_team.sql` | Checks the team rules: each task goes to one agent, nothing is sent without approval, do-not-contact is enforced, clients see only approved reports. Rolls back. |
@@ -54,6 +68,10 @@ Keys and passwords live only in a local `.env` file (ignored by git) or in your 
 Already set up with 0001 to 0003? Run only `0004_client_portal.sql`, then `tests/verify_portal.sql`.
 Already set up with 0001 to 0004? Run only `0005_first_sends.sql`, then `tests/verify_team.sql` and `tests/verify_sends.sql`.
 Already set up with 0001 to 0005? Run only `0006_qualify_and_handoff.sql`, then `tests/verify_sends.sql` and `tests/verify_pipeline.sql`.
+Already set up with 0001 to 0009? Run only `0010_call_brief.sql` and `seed/call_kit_santa_fe_rusticos.sql`, then `tests/verify_brief.sql`.
+Already set up with 0001 to 0015? Run `0016`, `0017`, `0018`, then `seed/growth_santa_fe_rusticos.sql` and `tests/verify_controls.sql`. (The live project has all of them since 2026-11-28.)
+
+Restoring from a backup: see `docs/recovery-runbook.md`.
 
 **Option B: from a terminal** (needs `psql`):
 ```bash
