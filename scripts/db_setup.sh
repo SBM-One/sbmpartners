@@ -40,6 +40,7 @@ installed() {
     0007_three_agents.sql)     check="select to_regclass('public.v_manual_sends') is not null" ;;
     0008_research_quota.sql)   check="select to_regclass('public.research_checks') is not null" ;;
     0009_phone_app.sql)        check="select to_regprocedure('public.phone_today()') is not null" ;;
+    0010_call_brief.sql)       check="select to_regclass('public.call_kits') is not null" ;;
     *) echo "No install check for $1; add one to scripts/db_setup.sh." >&2; exit 1 ;;
   esac
   [[ "$(psql "$DATABASE_URL" -X -tAc "$check")" == "t" ]]
@@ -62,4 +63,7 @@ if [[ "$(psql "$DATABASE_URL" -X -tAc "select to_regclass('public.meeting_handof
 fi
 if [[ "$(psql "$DATABASE_URL" -X -tAc "select to_regprocedure('public.phone_today()') is not null")" == "t" ]]; then
   run db/tests/verify_phone.sql
+fi
+if [[ "$(psql "$DATABASE_URL" -X -tAc "select to_regclass('public.call_kits') is not null")" == "t" ]]; then
+  run db/tests/verify_brief.sql
 fi
