@@ -41,6 +41,14 @@ installed() {
     0008_research_quota.sql)   check="select to_regclass('public.research_checks') is not null" ;;
     0009_phone_app.sql)        check="select to_regprocedure('public.phone_today()') is not null" ;;
     0010_call_brief.sql)       check="select to_regclass('public.call_kits') is not null" ;;
+    0011_reply_monitor.sql)    check="select to_regclass('public.monitor_runs') is not null" ;;
+    0012_autopilot.sql)        check="select to_regclass('public.autopilot_settings') is not null" ;;
+    0013_phone_send_log.sql)   check="select exists (select 1 from pg_proc where proname = 'phone_mark' and pg_get_functiondef(oid) like '%interactions%')" ;;
+    0014_mx_lead_research.sql) check="select to_regclass('public.mx_lead_board') is not null" ;;
+    0015_security_hardening.sql) check="select not has_function_privilege('anon', 'public.autopilot_today(uuid)', 'execute')" ;;
+    0016_operating_controls.sql) check="select to_regclass('public.ops_state') is not null" ;;
+    0017_growth_crm.sql)       check="select to_regclass('public.programs') is not null" ;;
+    0018_access_tightening.sql) check="select not has_table_privilege('anon', 'public.contacts', 'select')" ;;
     *) echo "No install check for $1; add one to scripts/db_setup.sh." >&2; exit 1 ;;
   esac
   [[ "$(psql "$DATABASE_URL" -X -tAc "$check")" == "t" ]]
@@ -66,4 +74,7 @@ if [[ "$(psql "$DATABASE_URL" -X -tAc "select to_regprocedure('public.phone_toda
 fi
 if [[ "$(psql "$DATABASE_URL" -X -tAc "select to_regclass('public.call_kits') is not null")" == "t" ]]; then
   run db/tests/verify_brief.sql
+fi
+if [[ "$(psql "$DATABASE_URL" -X -tAc "select to_regclass('public.ops_state') is not null")" == "t" ]]; then
+  run db/tests/verify_controls.sql
 fi
